@@ -3,6 +3,8 @@
     <template #content>
       <div :class="{ 'opacity-50 transition-opacity duration-300': isLoading }">
         <GeneralSettingForm
+          v-if="hasLoaded"
+          :key="formKey"
           :submitForm="submitForm"
           :initial-values="initialValues"
         />
@@ -24,20 +26,28 @@ import { useAppSettingsStore } from '@/stores/appSettings'
 import api from '@/api'
 
 const initialValues = ref({})
-const isLoading = ref(false)
+const isLoading = ref(true)
+const hasLoaded = ref(false)
+const formKey = ref(0)
 const settingsStore = useAppSettingsStore()
 
 onMounted(async () => {
-  isLoading.value = true
-  await settingsStore.fetchSettings('general')
-  const data = settingsStore.settings
-  isLoading.value = false
-  initialValues.value = Object.keys(data).reduce((acc, key) => {
-    // Remove 'app.' prefix
-    const newKey = key.replace(/^app\./, '')
-    acc[newKey] = data[key]
-    return acc
-  }, {})
+  try {
+    const response = await api.getSettings('general')
+    const data = response?.data?.data ?? response?.data ?? {}
+    settingsStore.setSettings(data)
+    initialValues.value = Object.keys(data).reduce((acc, key) => {
+      const newKey = key.replace(/^app\./, '')
+      acc[newKey] = data[key]
+      return acc
+    }, {})
+    formKey.value = Object.keys(initialValues.value).length
+  } catch (_) {
+    initialValues.value = {}
+  } finally {
+    isLoading.value = false
+    hasLoaded.value = true
+  }
 })
 
 const submitForm = async (values) => {

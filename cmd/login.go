@@ -1,8 +1,8 @@
 package main
 
 import (
-	amodels "github.com/abhinavxd/libredesk/internal/auth/models"
-	"github.com/abhinavxd/libredesk/internal/envelope"
+	amodels "github.com/ghotso/libredesk/internal/auth/models"
+	"github.com/ghotso/libredesk/internal/envelope"
 	realip "github.com/ferluci/fast-realip"
 	"github.com/valyala/fasthttp"
 	"github.com/zerodha/fastglue"
@@ -46,6 +46,7 @@ func handleLogin(r *fastglue.Request) error {
 		Email:     user.Email.String,
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
+		UserType:  "agent",
 	}, r); err != nil {
 		app.lo.Error("error saving session", "error", err)
 		return sendErrorEnvelope(r, envelope.NewError(envelope.GeneralError, app.i18n.Ts("globals.messages.errorSaving", "name", "{globals.terms.session}"), nil))

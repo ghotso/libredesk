@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/abhinavxd/libredesk/internal/media"
+	"github.com/ghotso/libredesk/internal/media"
 	"github.com/rhnvrm/simples3"
 )
 

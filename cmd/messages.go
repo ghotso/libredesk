@@ -3,12 +3,12 @@ package main
 import (
 	"strings"
 
-	amodels "github.com/abhinavxd/libredesk/internal/auth/models"
-	authzModels "github.com/abhinavxd/libredesk/internal/authz/models"
-	cmodels "github.com/abhinavxd/libredesk/internal/conversation/models"
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	medModels "github.com/abhinavxd/libredesk/internal/media/models"
-	umodels "github.com/abhinavxd/libredesk/internal/user/models"
+	amodels "github.com/ghotso/libredesk/internal/auth/models"
+	authzModels "github.com/ghotso/libredesk/internal/authz/models"
+	cmodels "github.com/ghotso/libredesk/internal/conversation/models"
+	"github.com/ghotso/libredesk/internal/envelope"
+	medModels "github.com/ghotso/libredesk/internal/media/models"
+	umodels "github.com/ghotso/libredesk/internal/user/models"
 	"github.com/valyala/fasthttp"
 	"github.com/zerodha/fastglue"
 )

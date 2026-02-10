@@ -191,6 +191,9 @@ const updateRole = (id, data) =>
   })
 const deleteRole = (id) => http.delete(`/api/v1/roles/${id}`)
 const getContacts = (params) => http.get('/api/v1/contacts', { params })
+const createContact = (data) => http.post('/api/v1/contacts', data, {
+  headers: { 'Content-Type': 'application/json' }
+})
 const getContact = (id) => http.get(`/api/v1/contacts/${id}`)
 const updateContact = (id, data) =>
   http.put(`/api/v1/contacts/${id}`, data, {
@@ -198,6 +201,7 @@ const updateContact = (id, data) =>
       'Content-Type': 'multipart/form-data'
     }
   })
+const sendContactSetPasswordEmail = (id) => http.post(`/api/v1/contacts/${id}/send-set-password-email`)
 const blockContact = (id, data) => http.put(`/api/v1/contacts/${id}/block`, data, {
   headers: {
     'Content-Type': 'application/json'
@@ -308,6 +312,12 @@ const updateConversationPriority = (uuid, data) =>
       'Content-Type': 'application/json'
     }
   })
+const updateConversationShareWithOrganization = (uuid, data) =>
+  http.put(`/api/v1/conversations/${uuid}/share-with-organization`, data, {
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
 const updateAssigneeLastSeen = (uuid) => http.put(`/api/v1/conversations/${uuid}/last-seen`)
 const markConversationAsUnread = (uuid) => http.put(`/api/v1/conversations/${uuid}/mark-unread`)
 const getConversationMessage = (cuuid, uuid) =>
@@ -384,6 +394,25 @@ const updateInbox = (id, data) =>
     }
   })
 const deleteInbox = (id) => http.delete(`/api/v1/inboxes/${id}`)
+const getOrganizations = () => http.get('/api/v1/organizations')
+const getOrganization = (id) => http.get(`/api/v1/organizations/${id}`)
+const createOrganization = (data) =>
+  http.post('/api/v1/organizations', data, { headers: { 'Content-Type': 'application/json' } })
+const updateOrganization = (id, data) =>
+  http.put(`/api/v1/organizations/${id}`, data, { headers: { 'Content-Type': 'application/json' } })
+const deleteOrganization = (id) => http.delete(`/api/v1/organizations/${id}`)
+const getOrganizationMembers = (id) => http.get(`/api/v1/organizations/${id}/members`)
+const addOrganizationMember = (id, data) =>
+  http.post(`/api/v1/organizations/${id}/members`, data, { headers: { 'Content-Type': 'application/json' } })
+const removeOrganizationMember = (id, contactId) =>
+  http.delete(`/api/v1/organizations/${id}/members/${contactId}`)
+const updateOrganizationMember = (id, contactId, data) =>
+  http.put(`/api/v1/organizations/${id}/members/${contactId}`, data, { headers: { 'Content-Type': 'application/json' } })
+const getOrganizationDomains = (id) => http.get(`/api/v1/organizations/${id}/domains`)
+const addOrganizationDomain = (id, data) =>
+  http.post(`/api/v1/organizations/${id}/domains`, data, { headers: { 'Content-Type': 'application/json' } })
+const removeOrganizationDomain = (id, domain) =>
+  http.delete(`/api/v1/organizations/${id}/domains`, { params: { domain } })
 const saveDraft = (uuid, data) =>
   http.post(`/api/v1/conversations/${uuid}/draft`, data, {
     headers: {
@@ -394,6 +423,17 @@ const saveDraft = (uuid, data) =>
 const getAllDrafts = () => http.get('/api/v1/drafts')
 
 const deleteDraft = (uuid) => http.delete(`/api/v1/conversations/${uuid}/draft`)
+const portalLogin = (data) => http.post('/api/v1/portal/auth/login', data, { headers: { 'Content-Type': 'application/json' } })
+const portalForgotPassword = (data) => http.post('/api/v1/portal/auth/forgot-password', data, { headers: { 'Content-Type': 'application/json' } })
+const portalSetPassword = (data) => http.post('/api/v1/portal/auth/set-password', data, { headers: { 'Content-Type': 'application/json' } })
+const portalLogout = () => http.post('/api/v1/portal/auth/logout')
+const portalMe = () => http.get('/api/v1/portal/auth/me')
+const portalGetConversations = (params) => http.get('/api/v1/portal/conversations', { params })
+const portalGetConversation = (uuid) => http.get(`/api/v1/portal/conversations/${uuid}`)
+const portalCreateConversation = (data) => http.post('/api/v1/portal/conversations', data, { headers: { 'Content-Type': 'application/json' } })
+const portalSendMessage = (uuid, data) => http.post(`/api/v1/portal/conversations/${uuid}/messages`, data, { headers: { 'Content-Type': 'application/json' } })
+const portalCloseConversation = (uuid, data) => http.post(`/api/v1/portal/conversations/${uuid}/close`, data, { headers: { 'Content-Type': 'application/json' } })
+const portalUploadMedia = (data) => http.post('/api/v1/portal/media', data, { headers: { 'Content-Type': 'multipart/form-data' } })
 const getCurrentUserViews = () => http.get('/api/v1/views/me')
 const createView = (data) =>
   http.post('/api/v1/views/me', data, {
@@ -438,6 +478,7 @@ const updateAIProvider = (data) => http.put('/api/v1/ai/provider', data, {
   }
 })
 const getContactNotes = (id) => http.get(`/api/v1/contacts/${id}/notes`)
+const getContactOrganizations = (id) => http.get(`/api/v1/contacts/${id}/organizations`)
 const createContactNote = (id, data) => http.post(`/api/v1/contacts/${id}/notes`, data, {
   headers: {
     'Content-Type': 'application/json'
@@ -548,6 +589,7 @@ export default {
   updateAssignee,
   updateConversationStatus,
   updateConversationPriority,
+  updateConversationShareWithOrganization,
   upsertTags,
   updateConversationCustomAttribute,
   updateContactCustomAttribute,
@@ -573,6 +615,18 @@ export default {
   toggleInbox,
   createTeam,
   updateTeam,
+  getOrganizations,
+  getOrganization,
+  createOrganization,
+  updateOrganization,
+  deleteOrganization,
+  getOrganizationMembers,
+  addOrganizationMember,
+  removeOrganizationMember,
+  updateOrganizationMember,
+  getOrganizationDomains,
+  addOrganizationDomain,
+  removeOrganizationDomain,
   getSettings,
   updateSettings,
   createOIDC,
@@ -619,8 +673,10 @@ export default {
   searchContacts,
   removeAssignee,
   getContacts,
+  createContact,
   getContact,
   updateContact,
+  sendContactSetPasswordEmail,
   blockContact,
   getCustomAttributes,
   createCustomAttribute,
@@ -628,6 +684,7 @@ export default {
   deleteCustomAttribute,
   getCustomAttribute,
   getContactNotes,
+  getContactOrganizations,
   createContactNote,
   deleteContactNote,
   getActivityLogs,
@@ -646,5 +703,16 @@ export default {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
-  deleteAllNotifications
+  deleteAllNotifications,
+  portalLogin,
+  portalForgotPassword,
+  portalSetPassword,
+  portalLogout,
+  portalMe,
+  portalGetConversations,
+  portalGetConversation,
+  portalCreateConversation,
+  portalSendMessage,
+  portalCloseConversation,
+  portalUploadMedia
 }

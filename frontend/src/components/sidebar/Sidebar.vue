@@ -73,6 +73,17 @@ const isActiveParent = (parentHref) => {
   return route.path.startsWith(parentHref)
 }
 
+// For Contacts & Organizations sub-routes: exact match for /contacts, prefix for /organizations
+const isActiveContactNavItem = (href) => {
+  if (href === '/contacts') {
+    return route.path === '/contacts' || route.path === '/contacts/'
+  }
+  if (href === '/organizations') {
+    return route.path.startsWith('/organizations')
+  }
+  return isActiveParent(href)
+}
+
 const isInboxRoute = (path) => {
   return path.startsWith('/inboxes')
 }
@@ -194,17 +205,15 @@ const viewToDelete = ref(null)
     :default-open="sidebarOpen"
     v-on:update:open="sidebarOpen = $event"
   >
-    <!-- Contacts sidebar -->
-    <template
-      v-if="route.matched.some((record) => record.name && record.name.startsWith('contact'))"
-    >
+    <!-- Contacts & Organizations sidebar -->
+    <template v-if="route.path.startsWith('/contacts') || route.path.startsWith('/organizations')">
       <Sidebar collapsible="offcanvas" class="sidebar-secondary">
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
               <div class="px-1">
                 <span class="font-semibold text-xl">
-                  {{ t('globals.terms.contact', 2) }}
+                  {{ t('admin.contactsAndOrganizations') }}
                 </span>
               </div>
             </SidebarMenuItem>
@@ -214,12 +223,12 @@ const viewToDelete = ref(null)
           <SidebarGroup>
             <SidebarMenu>
               <SidebarMenuItem v-for="item in filteredContactsNavItems" :key="item.titleKey">
-                <SidebarMenuButton :isActive="isActiveParent(item.href)" asChild>
+                <SidebarMenuButton :isActive="isActiveContactNavItem(item.href)" asChild>
                   <router-link :to="item.href">
                     <span>{{
-                      t('globals.messages.all', {
-                        name: t(item.titleKey, 2).toLowerCase()
-                      })
+                      item.href === '/contacts'
+                        ? t('globals.terms.contact', 2)
+                        : t(item.titleKey, item.isTitleKeyPlural === true ? 2 : 1)
                     }}</span>
                   </router-link>
                 </SidebarMenuButton>

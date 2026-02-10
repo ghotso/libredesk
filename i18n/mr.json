@@ -229,6 +229,7 @@
   "sla.firstResponseTimeAfterResolution": "प्रथम प्रतिसाद वेळ समाधान वेळेनंतर असू शकत नाही",
   "conversationStatus.alreadyInUse": "वापरात असलेली स्थिती हटवू शकत नाही, कृपया ही स्थिती सर्व संभाषणांमधून काढा",
   "conversationStatus.cannotUpdateDefault": "डिफॉल्ट संभाषण स्थिती अद्ययावत करू शकत नाही",
+  "conversationStatus.cannotDeleteDefault": "डिफॉल्ट संभाषण स्थिती हटवता येत नाहीत",
   "csat.alreadySubmitted": "CSAT आधीच सबमिट केला आहे",
   "auth.csrfTokenMismatch": "CSRF टोकन जुळत नाही",
   "auth.invalidOrExpiredSession": "अवैध किंवा कालबाह्य सत्र",

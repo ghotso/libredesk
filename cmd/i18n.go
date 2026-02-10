@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/abhinavxd/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/envelope"
 	"github.com/knadh/go-i18n"
 	"github.com/knadh/stuffbin"
 	"github.com/zerodha/fastglue"

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/abhinavxd/libredesk/internal/conversation/status/models"
-	"github.com/abhinavxd/libredesk/internal/dbutil"
-	"github.com/abhinavxd/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/conversation/status/models"
+	"github.com/ghotso/libredesk/internal/dbutil"
+	"github.com/ghotso/libredesk/internal/envelope"
 	"github.com/jmoiron/sqlx"
 	"github.com/knadh/go-i18n"
 	"github.com/zerodha/logf"
@@ -66,6 +66,9 @@ func (m *Manager) GetAll() ([]models.Status, error) {
 		m.lo.Error("error fetching statuses", "error", err)
 		return nil, envelope.NewError(envelope.GeneralError, m.i18n.Ts("globals.messages.errorFetching", "name", m.i18n.P("globals.terms.status")), nil)
 	}
+	for i := range statuses {
+		statuses[i].IsDefault = slices.Contains(models.DefaultStatusIDs, statuses[i].ID)
+	}
 	return statuses, nil
 }
 
@@ -79,19 +82,15 @@ func (m *Manager) Create(name string) (models.Status, error) {
 		m.lo.Error("error inserting status", "error", err)
 		return status, envelope.NewError(envelope.GeneralError, m.i18n.Ts("globals.messages.errorCreating", "name", m.i18n.T("globals.terms.status")), nil)
 	}
+	status.IsDefault = slices.Contains(models.DefaultStatusIDs, status.ID)
 	return status, nil
 }
 
 // Delete deletes a status by ID.
 func (m *Manager) Delete(id int) error {
-	// Disallow deletion of default statuses.
-	status, err := m.Get(id)
-	if err != nil {
-		return envelope.NewError(envelope.GeneralError, m.i18n.Ts("globals.messages.errorFetching", "name", m.i18n.T("globals.terms.status")), nil)
-	}
-
-	if slices.Contains(models.DefaultStatuses, status.Name) {
-		return envelope.NewError(envelope.InputError, m.i18n.T("conversationStatus.cannotUpdateDefault"), nil)
+	// Disallow deletion of default statuses (identified by fixed ID, not name).
+	if slices.Contains(models.DefaultStatusIDs, id) {
+		return envelope.NewError(envelope.InputError, m.i18n.T("conversationStatus.cannotDeleteDefault"), nil)
 	}
 
 	if _, err := m.q.DeleteStatus.Exec(id); err != nil {
@@ -104,26 +103,17 @@ func (m *Manager) Delete(id int) error {
 	return nil
 }
 
-// Update updates a status by id.
+// Update updates a status by id (including name; default statuses are allowed to be renamed).
 func (m *Manager) Update(id int, name string) (models.Status, error) {
 	var updatedStatus models.Status
 	if err := m.validateStatusName(name); err != nil {
 		return updatedStatus, err
 	}
-	// Disallow updating of default statuses.
-	status, err := m.Get(id)
-	if err != nil {
-		return updatedStatus, envelope.NewError(envelope.GeneralError, m.i18n.Ts("globals.messages.errorFetching", "name", m.i18n.Ts("globals.terms.status")), nil)
-	}
-
-	if slices.Contains(models.DefaultStatuses, status.Name) {
-		return updatedStatus, envelope.NewError(envelope.InputError, m.i18n.T("conversationStatus.cannotUpdateDefault"), nil)
-	}
-
 	if err := m.q.UpdateStatus.Get(&updatedStatus, id, name); err != nil {
 		m.lo.Error("error updating status", "error", err)
 		return updatedStatus, envelope.NewError(envelope.GeneralError, m.i18n.Ts("globals.messages.errorUpdating", "name", m.i18n.Ts("globals.terms.status")), nil)
 	}
+	updatedStatus.IsDefault = slices.Contains(models.DefaultStatusIDs, updatedStatus.ID)
 	return updatedStatus, nil
 }
 
@@ -134,6 +124,7 @@ func (m *Manager) Get(id int) (models.Status, error) {
 		m.lo.Error("error fetching status", "error", err)
 		return status, envelope.NewError(envelope.GeneralError, m.i18n.Ts("globals.messages.errorFetching", "name", m.i18n.Ts("globals.terms.status")), nil)
 	}
+	status.IsDefault = slices.Contains(models.DefaultStatusIDs, status.ID)
 	return status, nil
 }
 

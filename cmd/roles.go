@@ -3,10 +3,10 @@ package main
 import (
 	"strconv"
 
-	amodels "github.com/abhinavxd/libredesk/internal/auth/models"
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	"github.com/abhinavxd/libredesk/internal/role"
-	"github.com/abhinavxd/libredesk/internal/role/models"
+	amodels "github.com/ghotso/libredesk/internal/auth/models"
+	"github.com/ghotso/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/role"
+	"github.com/ghotso/libredesk/internal/role/models"
 	realip "github.com/ferluci/fast-realip"
 	"github.com/valyala/fasthttp"
 	"github.com/zerodha/fastglue"

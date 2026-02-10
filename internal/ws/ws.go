@@ -4,7 +4,7 @@ package ws
 import (
 	"sync"
 
-	"github.com/abhinavxd/libredesk/internal/ws/models"
+	"github.com/ghotso/libredesk/internal/ws/models"
 	"github.com/fasthttp/websocket"
 )
 

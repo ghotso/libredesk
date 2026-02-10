@@ -4,9 +4,9 @@ package tag
 import (
 	"embed"
 
-	"github.com/abhinavxd/libredesk/internal/dbutil"
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	"github.com/abhinavxd/libredesk/internal/tag/models"
+	"github.com/ghotso/libredesk/internal/dbutil"
+	"github.com/ghotso/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/tag/models"
 	"github.com/jmoiron/sqlx"
 	"github.com/knadh/go-i18n"
 	"github.com/zerodha/logf"

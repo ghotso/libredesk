@@ -1,24 +1,24 @@
 services:
   # Libredesk app
-  app:
-    image: libredesk/libredesk:latest
-    container_name: libredesk_app
-    restart: unless-stopped
-    ports:
-      - "9000:9000"
-    environment:
-      # If the password is set during first docker-compose up, the system user password will be set to this value.
-      # You can always set system user password later by running `docker exec -it libredesk_app ./libredesk --set-system-user-password`.
-      LIBREDESK_SYSTEM_USER_PASSWORD: ${LIBREDESK_SYSTEM_USER_PASSWORD:-}
-    networks:
-      - libredesk
-    depends_on:
-      - db
-      - redis
-    volumes:
-      - ./uploads:/libredesk/uploads:rw 
-      - ./config.toml:/libredesk/config.toml
-    command: [sh, -c, "./libredesk --install --idempotent-install --yes --config /libredesk/config.toml && ./libredesk --upgrade --yes --config /libredesk/config.toml && ./libredesk --config /libredesk/config.toml"]
+#  app:
+#    image: libredesk/libredesk:latest
+#    container_name: libredesk_app
+#    restart: unless-stopped
+#    ports:
+#      - "9000:9000"
+#    environment:
+#      # If the password is set during first docker-compose up, the system user password will be set to this value.
+#      # You can always set system user password later by running `docker exec -it libredesk_app ./libredesk --set-system-user-password`.
+#      LIBREDESK_SYSTEM_USER_PASSWORD: ${LIBREDESK_SYSTEM_USER_PASSWORD:-}
+#    networks:
+#      - libredesk
+#    depends_on:
+#      - db
+#      - redis
+#    volumes:
+#      - ./uploads:/libredesk/uploads:rw 
+#      - ./config.toml:/libredesk/config.toml
+#    command: [sh, -c, "./libredesk --install --idempotent-install --yes --config /libredesk/config.toml && ./libredesk --upgrade --yes --config /libredesk/config.toml && ./libredesk --config /libredesk/config.toml"]
 
   # PostgreSQL database
   db:
@@ -29,7 +29,7 @@ services:
       - libredesk
     ports:
       # Only bind on the local interface. To connect to Postgres externally, change this to 0.0.0.0
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5432:5433"
     environment:
       # Set these environment variables to configure the database, defaults to libredesk.
       POSTGRES_USER: ${POSTGRES_USER:-libredesk}
@@ -50,7 +50,7 @@ services:
     restart: unless-stopped
     ports:
       # Only bind on the local interface.
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:6379:6380"
     networks:
       - libredesk
     volumes:

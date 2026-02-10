@@ -89,6 +89,7 @@ type AppliedSLA struct {
 	ConversationReferenceNumber string    `db:"conversation_reference_number"`
 	ConversationSubject         string    `db:"conversation_subject"`
 	ConversationAssignedUserID  null.Int  `db:"conversation_assigned_user_id"`
+	ConversationStatusID        int       `db:"conversation_status_id"`
 	ConversationStatus          string    `db:"conversation_status"`
 }
 

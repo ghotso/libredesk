@@ -177,6 +177,7 @@
   "sla.firstResponseTimeAfterResolution": "زمان پاسخ اولیه نمی‌تواند بعد از زمان حل باشد",
   "conversationStatus.alreadyInUse": "نمی‌توان وضعیت را حذف کرد زیرا در حال استفاده است، لطفاً قبل از حذف، این وضعیت را از تمام مکالمات حذف کنید",
   "conversationStatus.cannotUpdateDefault": "نمی‌توان وضعیت پیش‌فرض مکالمه را به‌روزرسانی کرد",
+  "conversationStatus.cannotDeleteDefault": "وضعیت‌های پیش‌فرض مکالمه قابل حذف نیستند",
   "csat.alreadySubmitted": "نظرسنجی CSAT قبلاً ارسال شده است",
   "auth.csrfTokenMismatch": "عدم تطابق توکن CSRF",
   "auth.invalidOrExpiredSession": "جلسه نامعتبر یا منقضی شده",

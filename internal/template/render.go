@@ -17,8 +17,9 @@ const (
 	TmplMentioned            = "Mentioned in conversation"
 
 	// Built-in templates fetched from memory stored in `static` directory.
-	TmplResetPassword = "reset-password"
-	TmplWelcome       = "welcome"
+	TmplResetPassword       = "reset-password"
+	TmplPortalResetPassword = "portal-reset-password"
+	TmplWelcome             = "welcome"
 
 	// Template names for rendering.
 	TmplBase    = "base"

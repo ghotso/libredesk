@@ -5,8 +5,8 @@ import (
 	"slices"
 	"time"
 
-	rmodels "github.com/abhinavxd/libredesk/internal/role/models"
-	tmodels "github.com/abhinavxd/libredesk/internal/team/models"
+	rmodels "github.com/ghotso/libredesk/internal/role/models"
+	tmodels "github.com/ghotso/libredesk/internal/team/models"
 	"github.com/lib/pq"
 	"github.com/volatiletech/null/v9"
 )

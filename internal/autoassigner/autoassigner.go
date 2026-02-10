@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/abhinavxd/libredesk/internal/conversation/models"
-	tmodels "github.com/abhinavxd/libredesk/internal/team/models"
-	umodels "github.com/abhinavxd/libredesk/internal/user/models"
+	"github.com/ghotso/libredesk/internal/conversation/models"
+	tmodels "github.com/ghotso/libredesk/internal/team/models"
+	umodels "github.com/ghotso/libredesk/internal/user/models"
 	"github.com/mr-karan/balance"
 	"github.com/zerodha/logf"
 )

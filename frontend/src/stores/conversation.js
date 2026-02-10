@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, reactive, ref, watchEffect } from 'vue'
-import { CONVERSATION_LIST_TYPE, CONVERSATION_DEFAULT_STATUSES } from '@/constants/conversation'
+import { CONVERSATION_LIST_TYPE } from '@/constants/conversation'
 import { handleHTTPError } from '@/utils/http'
 import { computeRecipientsFromMessage } from '@/utils/email-recipients'
 import { useEmitter } from '@/composables/useEmitter'
@@ -26,9 +26,9 @@ export const useConversationStore = defineStore('conversation', () => {
   const statusOptions = computed(() => {
     return statuses.value.map(s => ({ label: s.name, value: s.id }))
   })
-  // Status options excluding 'Snoozed'
+  // Status options excluding Snoozed (default status ID 2)
   const statusOptionsNoSnooze = computed(() =>
-    statuses.value.filter(s => s.name !== 'Snoozed').map(s => ({
+    statuses.value.filter(s => Number(s.id) !== 2).map(s => ({
       label: s.name,
       value: s.id
     }))
@@ -514,7 +514,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
   async function snoozeConversation (snoozeDuration) {
     try {
-      await api.updateConversationStatus(conversation.data.uuid, { status: CONVERSATION_DEFAULT_STATUSES.SNOOZED, snoozed_until: snoozeDuration })
+      await api.updateConversationStatus(conversation.data.uuid, { status_id: 2, snoozed_until: snoozeDuration })
     } catch (error) {
       emitter.emit(EMITTER_EVENTS.SHOW_TOAST, {
         variant: 'destructive',

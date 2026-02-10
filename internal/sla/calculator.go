@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/abhinavxd/libredesk/internal/business_hours/models"
+	"github.com/ghotso/libredesk/internal/business_hours/models"
 )
 
 var (

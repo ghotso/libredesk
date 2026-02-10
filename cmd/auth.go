@@ -3,9 +3,9 @@ package main
 import (
 	"strconv"
 
-	amodels "github.com/abhinavxd/libredesk/internal/auth/models"
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	"github.com/abhinavxd/libredesk/internal/stringutil"
+	amodels "github.com/ghotso/libredesk/internal/auth/models"
+	"github.com/ghotso/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/stringutil"
 	realip "github.com/ferluci/fast-realip"
 	"github.com/valyala/fasthttp"
 	"github.com/zerodha/fastglue"

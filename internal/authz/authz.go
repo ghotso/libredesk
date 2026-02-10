@@ -8,9 +8,9 @@ import (
 	"strings"
 	"sync"
 
-	cmodels "github.com/abhinavxd/libredesk/internal/conversation/models"
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	umodels "github.com/abhinavxd/libredesk/internal/user/models"
+	cmodels "github.com/ghotso/libredesk/internal/conversation/models"
+	"github.com/ghotso/libredesk/internal/envelope"
+	umodels "github.com/ghotso/libredesk/internal/user/models"
 	"github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
 	"github.com/knadh/go-i18n"

@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	amodels "github.com/abhinavxd/libredesk/internal/auth/models"
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	"github.com/abhinavxd/libredesk/internal/user/models"
+	amodels "github.com/ghotso/libredesk/internal/auth/models"
+	"github.com/ghotso/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/user/models"
 	"github.com/valyala/fasthttp"
 	"github.com/zerodha/fastglue"
 	"github.com/zerodha/simplesessions/v3"
@@ -47,6 +47,11 @@ func authenticateUser(r *fastglue.Request, app *App) (models.User, error) {
 	if err != nil || sessUser.ID <= 0 {
 		app.lo.Error("error validating session", "error", err)
 		return user, envelope.NewError(envelope.GeneralError, app.i18n.T("auth.invalidOrExpiredSession"), nil)
+	}
+
+	// Agent routes: reject contact sessions (contacts must use portal APIs).
+	if sessUser.Type == models.UserTypeContact {
+		return user, envelope.NewError(envelope.PermissionError, app.i18n.T("auth.invalidOrExpiredSession"), nil)
 	}
 
 	// Get agent user from cache or load it.
@@ -228,7 +233,7 @@ func authOrSignedURL(handler fastglue.FastRequestHandler) fastglue.FastRequestHa
 	return func(r *fastglue.Request) error {
 		app := r.Context.(*App)
 
-		// First, try to authenticate normally.
+		// First, try to authenticate normally (agent).
 		user, err := authenticateUser(r, app)
 		if err == nil && user.ID > 0 {
 			// User is authenticated, set user context and proceed.
@@ -238,6 +243,20 @@ func authOrSignedURL(handler fastglue.FastRequestHandler) fastglue.FastRequestHa
 				FirstName: user.FirstName,
 				LastName:  user.LastName,
 			})
+			r.RequestCtx.SetUserValue("auth_method", "session")
+			return handler(r)
+		}
+
+		// If agent auth failed, allow portal contact session for uploads (GET only).
+		sessUser, sessErr := app.auth.ValidatePortalSession(r)
+		if sessErr == nil && sessUser.ID > 0 && sessUser.Type == models.UserTypeContact {
+			r.RequestCtx.SetUserValue("user", amodels.User{
+				ID:        sessUser.ID,
+				Email:     sessUser.Email.String,
+				FirstName: sessUser.FirstName,
+				LastName:  sessUser.LastName,
+			})
+			r.RequestCtx.SetUserValue("user_type", "contact")
 			r.RequestCtx.SetUserValue("auth_method", "session")
 			return handler(r)
 		}

@@ -5,16 +5,17 @@ import (
 	"strconv"
 	"time"
 
-	amodels "github.com/abhinavxd/libredesk/internal/auth/models"
-	authzModels "github.com/abhinavxd/libredesk/internal/authz/models"
-	"github.com/abhinavxd/libredesk/internal/automation/models"
-	cmodels "github.com/abhinavxd/libredesk/internal/conversation/models"
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	medModels "github.com/abhinavxd/libredesk/internal/media/models"
-	"github.com/abhinavxd/libredesk/internal/stringutil"
-	umodels "github.com/abhinavxd/libredesk/internal/user/models"
-	vmodels "github.com/abhinavxd/libredesk/internal/view/models"
-	wmodels "github.com/abhinavxd/libredesk/internal/webhook/models"
+	amodels "github.com/ghotso/libredesk/internal/auth/models"
+	authzModels "github.com/ghotso/libredesk/internal/authz/models"
+	"github.com/ghotso/libredesk/internal/automation/models"
+	cmodels "github.com/ghotso/libredesk/internal/conversation/models"
+	smodels "github.com/ghotso/libredesk/internal/conversation/status/models"
+	"github.com/ghotso/libredesk/internal/envelope"
+	medModels "github.com/ghotso/libredesk/internal/media/models"
+	"github.com/ghotso/libredesk/internal/stringutil"
+	umodels "github.com/ghotso/libredesk/internal/user/models"
+	vmodels "github.com/ghotso/libredesk/internal/view/models"
+	wmodels "github.com/ghotso/libredesk/internal/webhook/models"
 	"github.com/valyala/fasthttp"
 	"github.com/volatiletech/null/v9"
 	"github.com/zerodha/fastglue"
@@ -34,6 +35,7 @@ type priorityUpdateReq struct {
 
 type statusUpdateReq struct {
 	Status       string `json:"status"`
+	StatusID     int    `json:"status_id"`
 	SnoozedUntil string `json:"snoozed_until,omitempty"`
 }
 
@@ -42,16 +44,17 @@ type tagsUpdateReq struct {
 }
 
 type createConversationRequest struct {
-	InboxID         int    `json:"inbox_id"`
-	AssignedAgentID int    `json:"agent_id"`
-	AssignedTeamID  int    `json:"team_id"`
-	Email           string `json:"contact_email"`
-	FirstName       string `json:"first_name"`
-	LastName        string `json:"last_name"`
-	Subject         string `json:"subject"`
-	Content         string `json:"content"`
-	Attachments     []int  `json:"attachments"`
-	Initiator       string `json:"initiator"` // "contact" | "agent"
+	InboxID                int    `json:"inbox_id"`
+	AssignedAgentID        int    `json:"agent_id"`
+	AssignedTeamID         int    `json:"team_id"`
+	Email                  string `json:"contact_email"`
+	FirstName              string `json:"first_name"`
+	LastName               string `json:"last_name"`
+	Subject                string `json:"subject"`
+	Content                string `json:"content"`
+	Attachments            []int  `json:"attachments"`
+	Initiator              string `json:"initiator"`               // "contact" | "agent"
+	ShareWithOrganization  *bool  `json:"share_with_organization"` // optional; when true/false overrides contact's default
 }
 
 // handleGetAllConversations retrieves all conversations.
@@ -517,19 +520,41 @@ func handleUpdateConversationStatus(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.Ts("globals.messages.errorParsing", "name", "{globals.terms.request}"), nil, envelope.InputError)
 	}
 
-	status := req.Status
+	statusName := req.Status
 	snoozedUntil := req.SnoozedUntil
+	statusID := req.StatusID
 
-	// Validate inputs
-	if status == "" {
+	// Resolve status by ID or by name (so renamed default statuses work).
+	if statusID > 0 {
+		s, err := app.status.Get(statusID)
+		if err != nil {
+			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.Ts("globals.messages.invalid", "name", "`status_id`"), nil, envelope.InputError)
+		}
+		statusName = s.Name
+	} else if statusName != "" {
+		allStatuses, err := app.status.GetAll()
+		if err != nil {
+			return sendErrorEnvelope(r, err)
+		}
+		for _, s := range allStatuses {
+			if s.Name == statusName {
+				statusID = s.ID
+				break
+			}
+		}
+		if statusID == 0 {
+			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.Ts("globals.messages.invalid", "name", "`status`"), nil, envelope.InputError)
+		}
+	} else {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.Ts("globals.messages.empty", "name", "`status`"), nil, envelope.InputError)
 	}
-	if snoozedUntil == "" && status == cmodels.StatusSnoozed {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.Ts("globals.messages.empty", "name", "`snoozed_until`"), nil, envelope.InputError)
-	}
-	if status == cmodels.StatusSnoozed {
-		_, err := time.ParseDuration(snoozedUntil)
-		if err != nil {
+
+	// Validate snoozed_until when setting Snoozed status (ID 2).
+	if statusID == smodels.DefaultStatusIDSnoozed {
+		if snoozedUntil == "" {
+			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.Ts("globals.messages.empty", "name", "`snoozed_until`"), nil, envelope.InputError)
+		}
+		if _, err := time.ParseDuration(snoozedUntil); err != nil {
 			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.Ts("globals.messages.invalid", "name", "`snoozed_until`"), nil, envelope.InputError)
 		}
 	}
@@ -544,18 +569,18 @@ func handleUpdateConversationStatus(r *fastglue.Request) error {
 		return sendErrorEnvelope(r, err)
 	}
 
-	// Make sure a user is assigned before resolving conversation.
-	if status == cmodels.StatusResolved && conversation.AssignedUserID.Int == 0 {
+	// Make sure a user is assigned before resolving conversation (resolved = default status ID 3).
+	if statusID == smodels.DefaultStatusIDResolved && conversation.AssignedUserID.Int == 0 {
 		return sendErrorEnvelope(r, envelope.NewError(envelope.InputError, app.i18n.T("conversation.resolveWithoutAssignee"), nil))
 	}
 
 	// Update conversation status.
-	if err := app.conversation.UpdateConversationStatus(uuid, 0 /**status_id**/, status, snoozedUntil, user); err != nil {
+	if err := app.conversation.UpdateConversationStatus(uuid, statusID, "", snoozedUntil, user); err != nil {
 		return sendErrorEnvelope(r, err)
 	}
 
-	// If status is `Resolved`, send CSAT survey if enabled on inbox.
-	if status == cmodels.StatusResolved {
+	// If status is Resolved (ID 3), send CSAT survey if enabled on inbox.
+	if statusID == smodels.DefaultStatusIDResolved {
 		// Check if CSAT is enabled on the inbox and send CSAT survey message.
 		inbox, err := app.inbox.GetDBRecord(conversation.InboxID)
 		if err != nil {
@@ -566,6 +591,47 @@ func handleUpdateConversationStatus(r *fastglue.Request) error {
 				return sendErrorEnvelope(r, err)
 			}
 		}
+	}
+	return r.SendEnvelope(true)
+}
+
+type shareWithOrganizationReq struct {
+	SharedWithOrganization bool `json:"shared_with_organization"`
+}
+
+// handleUpdateConversationShareWithOrganization sets or clears the conversation's organization_id (share with contact's org).
+func handleUpdateConversationShareWithOrganization(r *fastglue.Request) error {
+	var (
+		app   = r.Context.(*App)
+		uuid  = r.RequestCtx.UserValue("uuid").(string)
+		req   = shareWithOrganizationReq{}
+	)
+
+	if err := r.Decode(&req, "json"); err != nil {
+		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.Ts("globals.messages.errorParsing", "name", "{globals.terms.request}"), nil, envelope.InputError)
+	}
+
+	auser := r.RequestCtx.UserValue("user").(amodels.User)
+	user, err := app.user.GetAgent(auser.ID, "")
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	conv, err := enforceConversationAccess(app, uuid, user)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+
+	mem, ok, err := app.organization.GetMembershipForContact(int64(conv.ContactID))
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	orgID := 0
+	if req.SharedWithOrganization && ok {
+		orgID = mem.OrganizationID
+	}
+
+	if err := app.conversation.UpdateConversationOrganizationID(uuid, orgID); err != nil {
+		return sendErrorEnvelope(r, err)
 	}
 	return r.SendEnvelope(true)
 }
@@ -764,16 +830,32 @@ func handleCreateConversation(r *fastglue.Request) error {
 	if err := app.user.CreateContact(&contact); err != nil {
 		return sendErrorEnvelope(r, envelope.NewError(envelope.GeneralError, app.i18n.Ts("globals.messages.errorCreating", "name", "{globals.terms.contact}"), nil))
 	}
+	// Auto-add contact to organizations whose domain matches contact email.
+	addContactToOrganizationsByEmailDomain(app, int64(contact.ID), req.Email)
+
+	// Resolve organization_id for ticket sharing when contact has org membership.
+	setOrgID := 0
+	mem, hasOrg, _ := app.organization.GetMembershipForContact(int64(contact.ID))
+	if hasOrg {
+		shareWithOrg := mem.ShareTicketsByDefault
+		if req.ShareWithOrganization != nil {
+			shareWithOrg = *req.ShareWithOrganization
+		}
+		if shareWithOrg {
+			setOrgID = mem.OrganizationID
+		}
+	}
 
 	// Create conversation first.
 	conversationID, conversationUUID, err := app.conversation.CreateConversation(
 		contact.ID,
 		contact.ContactChannelID,
 		req.InboxID,
-		"",         /** last_message **/
-		time.Now(), /** last_message_at **/
+		"",
+		time.Now(),
 		req.Subject,
-		true, /** append reference number to subject? **/
+		true,
+		setOrgID,
 	)
 	if err != nil {
 		app.lo.Error("error creating conversation", "error", err)

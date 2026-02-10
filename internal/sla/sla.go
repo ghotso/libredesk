@@ -11,18 +11,17 @@ import (
 	"sync"
 	"time"
 
-	businesshours "github.com/abhinavxd/libredesk/internal/business_hours"
-	bmodels "github.com/abhinavxd/libredesk/internal/business_hours/models"
-	cmodels "github.com/abhinavxd/libredesk/internal/conversation/models"
-	"github.com/abhinavxd/libredesk/internal/dbutil"
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	notifier "github.com/abhinavxd/libredesk/internal/notification"
-	nmodels "github.com/abhinavxd/libredesk/internal/notification/models"
-	"github.com/abhinavxd/libredesk/internal/sla/models"
-	"github.com/abhinavxd/libredesk/internal/stringutil"
-	tmodels "github.com/abhinavxd/libredesk/internal/team/models"
-	"github.com/abhinavxd/libredesk/internal/template"
-	umodels "github.com/abhinavxd/libredesk/internal/user/models"
+	businesshours "github.com/ghotso/libredesk/internal/business_hours"
+	bmodels "github.com/ghotso/libredesk/internal/business_hours/models"
+	"github.com/ghotso/libredesk/internal/dbutil"
+	"github.com/ghotso/libredesk/internal/envelope"
+	notifier "github.com/ghotso/libredesk/internal/notification"
+	nmodels "github.com/ghotso/libredesk/internal/notification/models"
+	"github.com/ghotso/libredesk/internal/sla/models"
+	"github.com/ghotso/libredesk/internal/stringutil"
+	tmodels "github.com/ghotso/libredesk/internal/team/models"
+	"github.com/ghotso/libredesk/internal/template"
+	umodels "github.com/ghotso/libredesk/internal/user/models"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/types"
 	"github.com/knadh/go-i18n"
@@ -544,8 +543,8 @@ func (m *Manager) SendNotification(scheduledNotification models.ScheduledSLANoti
 		return fmt.Errorf("fetching applied SLA for notification: %w", err)
 	}
 
-	// If conversation is `Resolved` / `Closed`, mark the notification as processed and return.
-	if appliedSLA.ConversationStatus == cmodels.StatusResolved || appliedSLA.ConversationStatus == cmodels.StatusClosed {
+	// If conversation is Resolved (3) or Closed (4), mark the notification as processed and return.
+	if appliedSLA.ConversationStatusID == 3 || appliedSLA.ConversationStatusID == 4 {
 		m.lo.Info("marking sla notification as processed as the conversation is resolved/closed", "status", appliedSLA.ConversationStatus, "scheduled_notification_id", scheduledNotification.ID)
 		if _, err := m.q.UpdateSLANotificationProcessed.Exec(scheduledNotification.ID); err != nil {
 			m.lo.Error("error marking notification as processed", "error", err)

@@ -14,37 +14,38 @@ import (
 
 	_ "time/tzdata"
 
-	activitylog "github.com/abhinavxd/libredesk/internal/activity_log"
-	"github.com/abhinavxd/libredesk/internal/ai"
-	auth_ "github.com/abhinavxd/libredesk/internal/auth"
-	"github.com/abhinavxd/libredesk/internal/authz"
-	businesshours "github.com/abhinavxd/libredesk/internal/business_hours"
-	"github.com/abhinavxd/libredesk/internal/colorlog"
-	"github.com/abhinavxd/libredesk/internal/csat"
-	customAttribute "github.com/abhinavxd/libredesk/internal/custom_attribute"
-	"github.com/abhinavxd/libredesk/internal/macro"
-	notifier "github.com/abhinavxd/libredesk/internal/notification"
-	"github.com/abhinavxd/libredesk/internal/report"
-	"github.com/abhinavxd/libredesk/internal/search"
-	"github.com/abhinavxd/libredesk/internal/sla"
-	"github.com/abhinavxd/libredesk/internal/view"
+	activitylog "github.com/ghotso/libredesk/internal/activity_log"
+	"github.com/ghotso/libredesk/internal/ai"
+	auth_ "github.com/ghotso/libredesk/internal/auth"
+	"github.com/ghotso/libredesk/internal/authz"
+	businesshours "github.com/ghotso/libredesk/internal/business_hours"
+	"github.com/ghotso/libredesk/internal/colorlog"
+	"github.com/ghotso/libredesk/internal/csat"
+	customAttribute "github.com/ghotso/libredesk/internal/custom_attribute"
+	"github.com/ghotso/libredesk/internal/macro"
+	notifier "github.com/ghotso/libredesk/internal/notification"
+	"github.com/ghotso/libredesk/internal/report"
+	"github.com/ghotso/libredesk/internal/search"
+	"github.com/ghotso/libredesk/internal/sla"
+	"github.com/ghotso/libredesk/internal/view"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/abhinavxd/libredesk/internal/automation"
-	"github.com/abhinavxd/libredesk/internal/conversation"
-	"github.com/abhinavxd/libredesk/internal/conversation/priority"
-	"github.com/abhinavxd/libredesk/internal/conversation/status"
-	"github.com/abhinavxd/libredesk/internal/importer"
-	"github.com/abhinavxd/libredesk/internal/inbox"
-	"github.com/abhinavxd/libredesk/internal/media"
-	"github.com/abhinavxd/libredesk/internal/oidc"
-	"github.com/abhinavxd/libredesk/internal/role"
-	"github.com/abhinavxd/libredesk/internal/setting"
-	"github.com/abhinavxd/libredesk/internal/tag"
-	"github.com/abhinavxd/libredesk/internal/team"
-	"github.com/abhinavxd/libredesk/internal/template"
-	"github.com/abhinavxd/libredesk/internal/user"
-	"github.com/abhinavxd/libredesk/internal/webhook"
+	"github.com/ghotso/libredesk/internal/automation"
+	"github.com/ghotso/libredesk/internal/conversation"
+	"github.com/ghotso/libredesk/internal/conversation/priority"
+	"github.com/ghotso/libredesk/internal/conversation/status"
+	"github.com/ghotso/libredesk/internal/importer"
+	"github.com/ghotso/libredesk/internal/inbox"
+	"github.com/ghotso/libredesk/internal/media"
+	"github.com/ghotso/libredesk/internal/oidc"
+	"github.com/ghotso/libredesk/internal/organization"
+	"github.com/ghotso/libredesk/internal/role"
+	"github.com/ghotso/libredesk/internal/setting"
+	"github.com/ghotso/libredesk/internal/tag"
+	"github.com/ghotso/libredesk/internal/team"
+	"github.com/ghotso/libredesk/internal/template"
+	"github.com/ghotso/libredesk/internal/user"
+	"github.com/ghotso/libredesk/internal/webhook"
 	"github.com/knadh/go-i18n"
 	"github.com/knadh/koanf/v2"
 	"github.com/knadh/stuffbin"
@@ -83,6 +84,7 @@ type App struct {
 	role             *role.Manager
 	user             *user.Manager
 	team             *team.Manager
+	organization     *organization.Manager
 	status           *status.Manager
 	priority         *priority.Manager
 	tag              *tag.Manager
@@ -208,6 +210,7 @@ func main() {
 		media                       = initMedia(db, i18n, settings)
 		inbox                       = initInbox(db, i18n)
 		team                        = initTeam(db, i18n)
+		organization                = initOrganization(db, i18n)
 		businessHours               = initBusinessHours(db, i18n)
 		webhook                     = initWebhook(db, i18n)
 		user                        = initUser(i18n, db)
@@ -217,7 +220,7 @@ func main() {
 		notifDispatcher             = initNotifDispatcher(userNotification, notifier, wsHub)
 		automation                  = initAutomationEngine(db, i18n)
 		sla                         = initSLA(db, team, settings, businessHours, template, user, i18n, notifDispatcher)
-		conversation                = initConversations(i18n, sla, status, priority, wsHub, db, inbox, user, team, media, settings, csat, automation, template, webhook, notifDispatcher)
+		conversation                = initConversations(i18n, sla, status, priority, wsHub, db, inbox, user, team, media, settings, csat, automation, template, webhook, notifDispatcher, organization)
 		autoassigner                = initAutoAssigner(team, user, conversation)
 	)
 	automation.SetConversationStore(conversation)
@@ -249,6 +252,7 @@ func main() {
 		inbox:            inbox,
 		user:             user,
 		team:             team,
+		organization:     organization,
 		status:           status,
 		priority:         priority,
 		tmpl:             template,

@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	"github.com/abhinavxd/libredesk/internal/inbox"
-	"github.com/abhinavxd/libredesk/internal/inbox/channel/email/oauth"
-	imodels "github.com/abhinavxd/libredesk/internal/inbox/models"
+	"github.com/ghotso/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/inbox"
+	"github.com/ghotso/libredesk/internal/inbox/channel/email/oauth"
+	imodels "github.com/ghotso/libredesk/internal/inbox/models"
 	"github.com/valyala/fasthttp"
 	"github.com/zerodha/fastglue"
 )

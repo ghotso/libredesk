@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	"github.com/abhinavxd/libredesk/internal/user/models"
+	"github.com/ghotso/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/user/models"
 	"github.com/volatiletech/null/v9"
 )
 
@@ -34,6 +34,16 @@ func (u *Manager) UpdateContact(id int, user models.User) error {
 		return envelope.NewError(envelope.GeneralError, u.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.contact}"), nil)
 	}
 	return nil
+}
+
+// EnsureContactChannel ensures a contact has a channel for the given inbox (creates or returns existing). Returns contact_channel_id.
+func (u *Manager) EnsureContactChannel(contactID, inboxID int, identifier string) (int, error) {
+	var id int
+	if err := u.q.EnsureContactChannel.QueryRow(contactID, inboxID, identifier).Scan(&id); err != nil {
+		u.lo.Error("error ensuring contact channel", "error", err)
+		return 0, fmt.Errorf("ensure contact channel: %w", err)
+	}
+	return id, nil
 }
 
 // GetContact retrieves a contact by ID.

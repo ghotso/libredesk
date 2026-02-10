@@ -4,7 +4,9 @@ import OuterApp from '@/OuterApp.vue'
 import InboxLayout from '@/layouts/inbox/InboxLayout.vue'
 import AccountLayout from '@/layouts/account/AccountLayout.vue'
 import AdminLayout from '@/layouts/admin/AdminLayout.vue'
+import PortalLayout from '@/layouts/portal/PortalLayout.vue'
 import { useAppSettingsStore } from '@/stores/appSettings'
+import api from '@/api'
 
 const routes = [
   {
@@ -37,15 +39,54 @@ const routes = [
     children: [
       {
         path: 'contacts',
-        name: 'contacts',
-        component: () => import('@/views/contact/ContactsView.vue'),
-        meta: { title: 'All contacts' }
+        component: () => import('@/layouts/contact/ContactsAndOrganizationsLayout.vue'),
+        meta: { title: 'Contacts & Organizations' },
+        children: [
+          {
+            path: '',
+            name: 'contacts',
+            component: () => import('@/views/contact/ContactsView.vue'),
+            meta: { title: 'Contacts' }
+          },
+          {
+            path: 'new',
+            name: 'new-contact',
+            component: () => import('@/views/contact/CreateContactView.vue'),
+            meta: { title: 'New contact' }
+          },
+          {
+            path: ':id',
+            name: 'contact-detail',
+            component: () => import('@/views/contact/ContactDetailView.vue'),
+            props: true,
+            meta: { title: 'Contacts' }
+          }
+        ]
       },
       {
-        path: 'contacts/:id',
-        name: 'contact-detail',
-        component: () => import('@/views/contact/ContactDetailView.vue'),
-        meta: { title: 'Contacts' }
+        path: 'organizations',
+        component: () => import('@/layouts/contact/ContactsAndOrganizationsLayout.vue'),
+        meta: { title: 'Organizations' },
+        children: [
+          {
+            path: '',
+            name: 'organization-list',
+            component: () => import('@/views/admin/organizations/OrganizationList.vue')
+          },
+          {
+            path: 'new',
+            name: 'new-organization',
+            component: () => import('@/views/admin/organizations/CreateOrganizationForm.vue'),
+            meta: { title: 'Create Organization' }
+          },
+          {
+            path: ':id',
+            props: true,
+            name: 'organization-detail',
+            component: () => import('@/views/admin/organizations/EditOrganizationForm.vue'),
+            meta: { title: 'Organization' }
+          }
+        ]
       },
       {
         path: '/reports',
@@ -187,6 +228,12 @@ const routes = [
             name: 'general',
             component: () => import('@/views/admin/general/General.vue'),
             meta: { title: 'General' }
+          },
+          {
+            path: 'portal',
+            name: 'portal-settings',
+            component: () => import('@/views/admin/portal/Portal.vue'),
+            meta: { title: 'Portal' }
           },
           {
             path: 'business-hours',
@@ -524,6 +571,61 @@ const routes = [
     ]
   },
   {
+    path: '/portal',
+    component: () => import('@/layouts/portal/PortalRoot.vue'),
+    meta: { title: 'Portal' },
+    children: [
+      {
+        path: '',
+        redirect: { name: 'portal-login' }
+      },
+      {
+        path: 'login',
+        name: 'portal-login',
+        component: () => import('@/views/portal/PortalLoginView.vue'),
+        meta: { title: 'Portal Login' }
+      },
+      {
+        path: 'forgot-password',
+        name: 'portal-forgot-password',
+        component: () => import('@/views/portal/PortalForgotPasswordView.vue'),
+        meta: { title: 'Forgot Password' }
+      },
+      {
+        path: 'set-password',
+        name: 'portal-set-password',
+        component: () => import('@/views/portal/PortalSetPasswordView.vue'),
+        meta: { title: 'Set Password' }
+      },
+      {
+        path: 'tickets',
+        component: PortalLayout,
+        meta: { title: 'My Tickets', requiresPortalAuth: true },
+        children: [
+          {
+            path: '',
+            name: 'portal-tickets',
+            component: () => import('@/views/portal/PortalTicketListView.vue'),
+            meta: { title: 'My Tickets' }
+          },
+          {
+            path: 'new',
+            name: 'portal-new-ticket',
+            component: () => import('@/views/portal/PortalCreateTicketView.vue'),
+            meta: { title: 'New Ticket' }
+          },
+          {
+            path: ':uuid',
+            name: 'portal-ticket-detail',
+            component: () => import('@/views/portal/PortalTicketDetailView.vue'),
+            props: true,
+            meta: { title: 'Ticket' }
+          }
+        ]
+      }
+    ]
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: () => {
       return '/inboxes/assigned'
@@ -536,12 +638,32 @@ const router = createRouter({
   routes: routes
 })
 
-router.beforeEach((to, from, next) => {
-  // Make page title with the route name and site name
+router.beforeEach(async (to, from, next) => {
   const appSettingsStore = useAppSettingsStore()
-  const siteName = appSettingsStore.settings?.['app.site_name'] || 'Libredesk'
+  const siteName = appSettingsStore.settings?.['app.site_name'] || appSettingsStore.public_config?.['app.site_name'] || 'Libredesk'
   const pageTitle = to.meta?.title || ''
   document.title = `${pageTitle} - ${siteName}`
+
+  // Portal auth: require contact session for /portal/tickets*
+  if (to.matched.some(r => r.meta.requiresPortalAuth)) {
+    try {
+      await api.portalMe()
+      next()
+    } catch {
+      next({ name: 'portal-login', query: { next: to.fullPath } })
+    }
+    return
+  }
+  // If on portal login and already logged in, redirect to tickets
+  if (to.name === 'portal-login') {
+    try {
+      await api.portalMe()
+      next({ name: 'portal-tickets' })
+    } catch {
+      next()
+    }
+    return
+  }
   next()
 })
 

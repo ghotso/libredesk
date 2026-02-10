@@ -381,6 +381,7 @@
   "sla.firstResponseTimeAfterResolution": "初回応答時間は解決時間より後には設定できません",
   "conversationStatus.alreadyInUse": "このステータスは使用中のため削除できません。削除する前に、すべての会話からこのステータスを削除してください",
   "conversationStatus.cannotUpdateDefault": "デフォルトの会話ステータスは更新できません",
+  "conversationStatus.cannotDeleteDefault": "デフォルトの会話ステータスは削除できません",
   "csat.alreadySubmitted": "CSAT はすでに送信されました",
   "csat.rateYourInteraction": "最近の対応を評価してください",
   "csat.rating.poor": "不満",

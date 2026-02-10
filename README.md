@@ -50,8 +50,8 @@ The latest image is available on DockerHub at [`libredesk/libredesk:latest`](htt
 
 ```shell
 # Download the compose file and sample config file in the current directory.
-curl -LO https://github.com/abhinavxd/libredesk/raw/main/docker-compose.yml
-curl -LO https://github.com/abhinavxd/libredesk/raw/main/config.sample.toml
+curl -LO https://github.com/ghotso/libredesk/raw/main/docker-compose.yml
+curl -LO https://github.com/ghotso/libredesk/raw/main/config.sample.toml
 
 # Copy the config.sample.toml to config.toml and edit it as needed.
 cp config.sample.toml config.toml
@@ -70,7 +70,7 @@ See [installation docs](https://docs.libredesk.io/getting-started/installation)
 __________________
 
 ### Binary
-- Download the [latest release](https://github.com/abhinavxd/libredesk/releases) and extract the libredesk binary.
+- Download the [latest release](https://github.com/ghotso/libredesk/releases) and extract the libredesk binary.
 - Copy config.sample.toml to config.toml and edit as needed.
 - `./libredesk --install` to setup the Postgres DB (or `--upgrade` to upgrade an existing DB. Upgrades are idempotent and running them multiple times have no side effects).
 - Run `./libredesk --set-system-user-password` to set the password for the System user.

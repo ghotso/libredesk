@@ -26,12 +26,12 @@
                     <TooltipTrigger as-child>
                       <SidebarMenuButton asChild :isActive="route.path.startsWith('/contacts')">
                         <router-link :to="{ name: 'contacts' }">
-                          <BookUser />
+                          <Building2 />
                         </router-link>
                       </SidebarMenuButton>
                     </TooltipTrigger>
                     <TooltipContent side="right">
-                      <p>{{ t('globals.terms.contact', 2) }}</p>
+                      <p>{{ t('admin.contactsAndOrganizations') }}</p>
                     </TooltipContent>
                   </Tooltip>
                 </SidebarMenuItem>
@@ -150,7 +150,7 @@ import { toast as sooner } from 'vue-sonner'
 import Sidebar from '@/components/sidebar/Sidebar.vue'
 import Command from '@/features/command/CommandBox.vue'
 import CreateConversation from '@/features/conversation/CreateConversation.vue'
-import { Inbox, Shield, FileLineChart, BookUser } from 'lucide-vue-next'
+import { Inbox, Shield, FileLineChart, Building2 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import {

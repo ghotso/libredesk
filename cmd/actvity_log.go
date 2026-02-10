@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/abhinavxd/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/envelope"
 	"github.com/zerodha/fastglue"
 )
 

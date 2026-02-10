@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/abhinavxd/libredesk/internal/automation/models"
-	cmodels "github.com/abhinavxd/libredesk/internal/conversation/models"
-	umodels "github.com/abhinavxd/libredesk/internal/user/models"
+	"github.com/ghotso/libredesk/internal/automation/models"
+	cmodels "github.com/ghotso/libredesk/internal/conversation/models"
+	umodels "github.com/ghotso/libredesk/internal/user/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/volatiletech/null/v9"

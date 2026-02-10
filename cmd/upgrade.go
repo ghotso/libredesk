@@ -9,8 +9,8 @@ import (
 	"log"
 	"strings"
 
-	"github.com/abhinavxd/libredesk/internal/dbutil"
-	"github.com/abhinavxd/libredesk/internal/migrations"
+	"github.com/ghotso/libredesk/internal/dbutil"
+	"github.com/ghotso/libredesk/internal/migrations"
 	"github.com/jmoiron/sqlx"
 	"github.com/knadh/koanf/v2"
 	"github.com/knadh/stuffbin"
@@ -40,6 +40,9 @@ var migList = []migFunc{
 	{"v0.9.1", migrations.V0_9_1},
 	{"v0.10.0", migrations.V0_10_0},
 	{"v1.0.1", migrations.V1_0_1},
+	{"v1.1.0", migrations.V1_1_0},
+	{"v1.2.0", migrations.V1_2_0},
+	{"v1.3.0", migrations.V1_3_0},
 }
 
 // upgrade upgrades the database to the current version by running SQL migration files

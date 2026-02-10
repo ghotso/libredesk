@@ -10,6 +10,9 @@ type General struct {
 	AllowedFileUploadExtensions []string `json:"app.allowed_file_upload_extensions"`
 	Timezone                    string   `json:"app.timezone"`
 	BusinessHoursID             string   `json:"app.business_hours_id"`
+	PortalEnabled               bool     `json:"app.portal_enabled"`
+	PortalDefaultInboxID        int      `json:"app.portal_default_inbox_id"`
+	OrganizationsEnabled        bool     `json:"app.organizations_enabled"`
 }
 
 type EmailNotification struct {

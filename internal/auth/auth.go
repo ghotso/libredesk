@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	amodels "github.com/abhinavxd/libredesk/internal/auth/models"
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	"github.com/abhinavxd/libredesk/internal/stringutil"
-	"github.com/abhinavxd/libredesk/internal/user/models"
+	amodels "github.com/ghotso/libredesk/internal/auth/models"
+	"github.com/ghotso/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/stringutil"
+	"github.com/ghotso/libredesk/internal/user/models"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/knadh/go-i18n"
 	"github.com/redis/go-redis/v9"
@@ -51,16 +51,18 @@ type Config struct {
 	SecureCookies bool
 }
 
-// Auth is the auth service it manages OIDC authentication and sessions
+// Auth is the auth service it manages OIDC authentication and sessions.
+// Agent (admin) and portal (contact) use separate session cookies so one login does not overwrite the other.
 type Auth struct {
-	mu        sync.RWMutex
-	cfg       Config
-	i18n      *i18n.I18n
-	oauthCfgs map[int]oauth2.Config
-	verifiers map[int]*oidc.IDTokenVerifier
-	sess      *simplesessions.Manager
-	logger    *logf.Logger
-	rd        *redis.Client
+	mu         sync.RWMutex
+	cfg        Config
+	i18n       *i18n.I18n
+	oauthCfgs  map[int]oauth2.Config
+	verifiers  map[int]*oidc.IDTokenVerifier
+	sess       *simplesessions.Manager       // agent session (cookie: libredesk_session)
+	portalSess *simplesessions.Manager       // portal/contact session (cookie: libredesk_portal_session)
+	logger     *logf.Logger
+	rd         *redis.Client
 }
 
 // New creates an Auth service with configured OIDC providers
@@ -105,14 +107,29 @@ func New(cfg Config, i18n *i18n.I18n, rd *redis.Client, logger *logf.Logger) (*A
 	sess.UseStore(st)
 	sess.SetCookieHooks(simpleSessGetCookieCB, simpleSessSetCookieCB)
 
+	// Portal (contact) session uses a separate cookie so portal login does not overwrite agent session.
+	portalSess := simplesessions.New(simplesessions.Options{
+		EnableAutoCreate: true,
+		SessionIDLength:  64,
+		Cookie: simplesessions.CookieOptions{
+			Name:       "libredesk_portal_session",
+			IsHTTPOnly: true,
+			IsSecure:   cfg.SecureCookies,
+			MaxAge:     time.Hour * 9,
+		},
+	})
+	portalSess.UseStore(st)
+	portalSess.SetCookieHooks(simpleSessGetCookieCB, simpleSessSetCookieCB)
+
 	return &Auth{
-		cfg:       cfg,
-		i18n:      i18n,
-		oauthCfgs: oauthCfgs,
-		verifiers: verifiers,
-		sess:      sess,
-		logger:    logger,
-		rd:        rd,
+		cfg:        cfg,
+		i18n:       i18n,
+		oauthCfgs:  oauthCfgs,
+		verifiers:  verifiers,
+		sess:       sess,
+		portalSess: portalSess,
+		logger:     logger,
+		rd:         rd,
 	}, nil
 }
 
@@ -212,7 +229,7 @@ func (a *Auth) ExchangeOIDCToken(ctx context.Context, providerID int, code strin
 	return rawIDTk, claims, nil
 }
 
-// SaveSession creates and sets a session (post successful login/auth).
+// SaveSession creates and sets a session (post successful login/auth). Used for agent (admin) login.
 func (a *Auth) SaveSession(user amodels.User, r *fastglue.Request) error {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -223,13 +240,45 @@ func (a *Auth) SaveSession(user amodels.User, r *fastglue.Request) error {
 		return err
 	}
 
+	userType := user.UserType
+	if userType == "" {
+		userType = models.UserTypeAgent
+	}
 	if err := sess.SetMulti(map[string]interface{}{
 		"id":         user.ID,
 		"email":      user.Email,
 		"first_name": user.FirstName,
 		"last_name":  user.LastName,
+		"user_type":  userType,
 	}); err != nil {
 		a.logger.Error("error setting login session", "error", err)
+		return err
+	}
+	return nil
+}
+
+// SavePortalSession creates and sets the portal (contact) session. Uses a separate cookie so it does not overwrite agent session.
+func (a *Auth) SavePortalSession(user amodels.User, r *fastglue.Request) error {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	sess, err := a.portalSess.NewSession(r, r)
+	if err != nil {
+		a.logger.Error("error creating portal session", "error", err)
+		return err
+	}
+	userType := user.UserType
+	if userType == "" {
+		userType = models.UserTypeContact
+	}
+	if err := sess.SetMulti(map[string]interface{}{
+		"id":         user.ID,
+		"email":      user.Email,
+		"first_name": user.FirstName,
+		"last_name":  user.LastName,
+		"user_type":  userType,
+	}); err != nil {
+		a.logger.Error("error setting portal session", "error", err)
 		return err
 	}
 	return nil
@@ -295,7 +344,7 @@ func (a *Auth) SetCSRFCookie(r *fastglue.Request) error {
 	return nil
 }
 
-// ValidateSession validates the session and returns the user.
+// ValidateSession validates the agent session and returns the user. Reads cookie libredesk_session only.
 func (a *Auth) ValidateSession(r *fastglue.Request) (models.User, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -306,7 +355,7 @@ func (a *Auth) ValidateSession(r *fastglue.Request) (models.User, error) {
 		return models.User{}, err
 	}
 
-	sessVals, err := sess.GetMulti("id", "email", "first_name", "last_name")
+	sessVals, err := sess.GetMulti("id", "email", "first_name", "last_name", "user_type")
 	if err != nil {
 		a.logger.Error("error fetching session variables", "error", err)
 		return models.User{}, err
@@ -317,17 +366,59 @@ func (a *Auth) ValidateSession(r *fastglue.Request) (models.User, error) {
 		email, _     = sess.String(sessVals["email"], nil)
 		firstName, _ = sess.String(sessVals["first_name"], nil)
 		lastName, _  = sess.String(sessVals["last_name"], nil)
+		userType, _  = sess.String(sessVals["user_type"], nil)
 	)
+	if userType == "" {
+		userType = models.UserTypeAgent
+	}
 
 	return models.User{
 		ID:        userID,
 		Email:     null.NewString(email, email != ""),
 		FirstName: firstName,
 		LastName:  lastName,
+		Type:      userType,
 	}, nil
 }
 
-// DestroySession destroys session
+// ValidatePortalSession validates the portal (contact) session. Reads cookie libredesk_portal_session only.
+func (a *Auth) ValidatePortalSession(r *fastglue.Request) (models.User, error) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	sess, err := a.portalSess.Acquire(r.RequestCtx, r, r)
+	if err != nil {
+		a.logger.Error("error acquiring portal session", "error", err)
+		return models.User{}, err
+	}
+
+	sessVals, err := sess.GetMulti("id", "email", "first_name", "last_name", "user_type")
+	if err != nil {
+		a.logger.Error("error fetching portal session variables", "error", err)
+		return models.User{}, err
+	}
+
+	var (
+		userID, _    = sess.Int(sessVals["id"], nil)
+		email, _     = sess.String(sessVals["email"], nil)
+		firstName, _ = sess.String(sessVals["first_name"], nil)
+		lastName, _  = sess.String(sessVals["last_name"], nil)
+		userType, _  = sess.String(sessVals["user_type"], nil)
+	)
+	if userType == "" {
+		userType = models.UserTypeContact
+	}
+
+	return models.User{
+		ID:        userID,
+		Email:     null.NewString(email, email != ""),
+		FirstName: firstName,
+		LastName:  lastName,
+		Type:      userType,
+	}, nil
+}
+
+// DestroySession destroys the agent session.
 func (a *Auth) DestroySession(r *fastglue.Request) error {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -339,6 +430,23 @@ func (a *Auth) DestroySession(r *fastglue.Request) error {
 	}
 	if err := sess.Destroy(); err != nil {
 		a.logger.Error("error clearing session", "error", err)
+		return err
+	}
+	return nil
+}
+
+// DestroyPortalSession destroys the portal (contact) session.
+func (a *Auth) DestroyPortalSession(r *fastglue.Request) error {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	sess, err := a.portalSess.Acquire(r.RequestCtx, r, r)
+	if err != nil {
+		a.logger.Error("error acquiring portal session", "error", err)
+		return err
+	}
+	if err := sess.Destroy(); err != nil {
+		a.logger.Error("error clearing portal session", "error", err)
 		return err
 	}
 	return nil

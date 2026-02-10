@@ -162,7 +162,10 @@ import { useUserStore } from '@/stores/user'
 import { Letter } from 'vue-letter'
 import api from '@/api'
 
-const props = defineProps({ contactId: Number })
+const props = defineProps({
+  contactId: { type: Number, required: true },
+  initialNotes: { type: Array, default: null }
+})
 const { t } = useI18n()
 const emitter = useEmitter()
 const userStore = useUserStore()
@@ -187,7 +190,14 @@ const fetchNotes = async () => {
   }
 }
 
-onMounted(fetchNotes)
+onMounted(() => {
+  if (props.initialNotes != null) {
+    notes.value = props.initialNotes
+    isLoading.value = false
+    return
+  }
+  fetchNotes()
+})
 
 const formatDate = (date) => format(new Date(date), 'PPP p')
 

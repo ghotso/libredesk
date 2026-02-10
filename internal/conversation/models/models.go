@@ -5,9 +5,9 @@ import (
 	"net/textproto"
 	"time"
 
-	"github.com/abhinavxd/libredesk/internal/attachment"
-	mmodels "github.com/abhinavxd/libredesk/internal/media/models"
-	umodels "github.com/abhinavxd/libredesk/internal/user/models"
+	"github.com/ghotso/libredesk/internal/attachment"
+	mmodels "github.com/ghotso/libredesk/internal/media/models"
+	umodels "github.com/ghotso/libredesk/internal/user/models"
 	"github.com/lib/pq"
 	"github.com/volatiletech/null/v9"
 )
@@ -121,6 +121,7 @@ type Conversation struct {
 	AssignedTeamID        null.Int               `db:"assigned_team_id" json:"assigned_team_id"`
 	WaitingSince          null.Time              `db:"waiting_since" json:"waiting_since"`
 	Subject               null.String            `db:"subject" json:"subject"`
+	OrganizationID         null.Int               `db:"organization_id" json:"organization_id"`
 	InboxMail             string                 `db:"inbox_mail" json:"inbox_mail"`
 	InboxName             string                 `db:"inbox_name" json:"inbox_name"`
 	InboxChannel          string                 `db:"inbox_channel" json:"inbox_channel"`
@@ -140,8 +141,10 @@ type Conversation struct {
 	FirstResponseDueAt    null.Time              `db:"first_response_deadline_at" json:"first_response_deadline_at"`
 	ResolutionDueAt       null.Time              `db:"resolution_deadline_at" json:"resolution_deadline_at"`
 	NextResponseDueAt     null.Time              `db:"next_response_deadline_at" json:"next_response_deadline_at"`
-	NextResponseMetAt     null.Time              `db:"next_response_met_at" json:"next_response_met_at"`
-	PreviousConversations []PreviousConversation `db:"-" json:"previous_conversations"`
+	NextResponseMetAt       null.Time              `db:"next_response_met_at" json:"next_response_met_at"`
+	ContactOrganizationID   null.Int               `db:"contact_organization_id" json:"contact_organization_id"`
+	ContactOrganizationName null.String            `db:"contact_organization_name" json:"contact_organization_name"`
+	PreviousConversations   []PreviousConversation `db:"-" json:"previous_conversations"`
 }
 
 type ConversationContact struct {
@@ -167,6 +170,17 @@ func (c *ConversationContact) FullName() string {
 		return c.FirstName
 	}
 	return c.FirstName + " " + c.LastName
+}
+
+// PortalConversationListItem is a minimal conversation row for portal (contact) list.
+type PortalConversationListItem struct {
+	Total            int         `db:"total" json:"-"`
+	ID               int         `db:"id" json:"id"`
+	UUID             string      `db:"uuid" json:"uuid"`
+	ReferenceNumber  string      `db:"reference_number" json:"reference_number"`
+	Subject          null.String `db:"subject" json:"subject"`
+	LastMessageAt    null.Time   `db:"last_message_at" json:"last_message_at"`
+	Status           string      `db:"status" json:"status"`
 }
 
 type PreviousConversation struct {

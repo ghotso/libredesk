@@ -25,7 +25,7 @@
             <DropdownMenuItem
               v-for="status in conversationStore.statusOptions"
               :key="status.value"
-              @click="handleUpdateStatus(status.label)"
+              @click="handleUpdateStatus(status)"
             >
               {{ status.label }}
             </DropdownMenuItem>
@@ -55,20 +55,20 @@ import {
 import MessageList from '@/features/conversation/message/MessageList.vue'
 import ReplyBox from './ReplyBox.vue'
 import { EMITTER_EVENTS } from '@/constants/emitterEvents.js'
-import { CONVERSATION_DEFAULT_STATUSES } from '@/constants/conversation'
 import { useEmitter } from '@/composables/useEmitter'
 import { Skeleton } from '@/components/ui/skeleton'
 const conversationStore = useConversationStore()
 const emitter = useEmitter()
 
-const handleUpdateStatus = (status) => {
-  if (status === CONVERSATION_DEFAULT_STATUSES.SNOOZED) {
+const handleUpdateStatus = (statusOption) => {
+  // Snoozed is default status ID 2 (show duration dialog)
+  if (Number(statusOption.value) === 2) {
     emitter.emit(EMITTER_EVENTS.SET_NESTED_COMMAND, {
       command: 'snooze',
       open: true
     })
     return
   }
-  conversationStore.updateStatus(status)
+  conversationStore.updateStatus(statusOption.label)
 }
 </script>

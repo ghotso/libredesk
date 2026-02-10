@@ -220,7 +220,7 @@ const formLoading = ref(false)
 const props = defineProps({
   initialValues: {
     type: Object,
-    required: false
+    default: () => ({})
   },
   submitForm: {
     type: Function,
@@ -281,18 +281,20 @@ const onSubmit = form.handleSubmit(async (values) => {
   }
 })
 
-// Watch for changes in initialValues and update the form.
+// Watch for changes in initialValues and update the form (resetForm so fields display and validation state is cleared).
 watch(
   () => props.initialValues,
   (newValues) => {
-    if (Object.keys(newValues).length === 0) {
+    const values = newValues || {}
+    if (Object.keys(values).length === 0) {
       return
     }
-    // Convert business hours id to string
-    if (newValues.business_hours_id)
-      newValues.business_hours_id = newValues.business_hours_id.toString()
-    form.setValues(newValues)
+    const vals = { ...values }
+    if (vals.business_hours_id != null) {
+      vals.business_hours_id = String(vals.business_hours_id)
+    }
+    form.resetForm({ values: vals })
   },
-  { deep: true }
+  { deep: true, immediate: true }
 )
 </script>

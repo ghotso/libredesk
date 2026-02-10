@@ -15,11 +15,11 @@ import (
 
 	"log"
 
-	"github.com/abhinavxd/libredesk/internal/dbutil"
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	rmodels "github.com/abhinavxd/libredesk/internal/role/models"
-	"github.com/abhinavxd/libredesk/internal/stringutil"
-	"github.com/abhinavxd/libredesk/internal/user/models"
+	"github.com/ghotso/libredesk/internal/dbutil"
+	"github.com/ghotso/libredesk/internal/envelope"
+	rmodels "github.com/ghotso/libredesk/internal/role/models"
+	"github.com/ghotso/libredesk/internal/stringutil"
+	"github.com/ghotso/libredesk/internal/user/models"
 	"github.com/jmoiron/sqlx"
 	"github.com/knadh/go-i18n"
 	"github.com/lib/pq"
@@ -76,10 +76,12 @@ type queries struct {
 	SoftDeleteAgent        *sqlx.Stmt `query:"soft-delete-agent"`
 	SetUserPassword        *sqlx.Stmt `query:"set-user-password"`
 	SetResetPasswordToken  *sqlx.Stmt `query:"set-reset-password-token"`
+	SetContactResetPasswordToken *sqlx.Stmt `query:"set-contact-reset-password-token"`
 	SetPassword            *sqlx.Stmt `query:"set-password"`
 	DeleteNote             *sqlx.Stmt `query:"delete-note"`
 	InsertAgent            *sqlx.Stmt `query:"insert-agent"`
 	InsertContact          *sqlx.Stmt `query:"insert-contact"`
+	EnsureContactChannel   *sqlx.Stmt `query:"ensure-contact-channel"`
 	InsertNote             *sqlx.Stmt `query:"insert-note"`
 	ToggleEnable           *sqlx.Stmt `query:"toggle-enable"`
 	// API key queries
@@ -115,6 +117,29 @@ func (u *Manager) VerifyPassword(email string, password []byte) (models.User, er
 		return user, envelope.NewError(envelope.GeneralError, u.i18n.Ts("globals.messages.errorFetching", "name", "{globals.terms.user}"), nil)
 	}
 	if err := u.verifyPassword(password, user.Password.String); err != nil {
+		return user, envelope.NewError(envelope.InputError, u.i18n.T("user.invalidEmailPassword"), nil)
+	}
+	return user, nil
+}
+
+// VerifyPasswordForContact authenticates a contact by email and password, returning the contact user if successful.
+// Contacts must have a non-null password to use the portal.
+func (u *Manager) VerifyPasswordForContact(email string, password []byte) (models.User, error) {
+	var user models.User
+	if err := u.q.GetUser.Get(&user, 0, email, models.UserTypeContact); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return user, envelope.NewError(envelope.InputError, u.i18n.T("user.invalidEmailPassword"), nil)
+		}
+		u.lo.Error("error fetching contact from db", "error", err)
+		return user, envelope.NewError(envelope.GeneralError, u.i18n.Ts("globals.messages.errorFetching", "name", "{globals.terms.contact}"), nil)
+	}
+	if !user.Password.Valid || user.Password.String == "" {
+		return user, envelope.NewError(envelope.InputError, u.i18n.T("user.invalidEmailPassword"), nil)
+	}
+	if err := u.verifyPassword(password, user.Password.String); err != nil {
+		return user, envelope.NewError(envelope.InputError, u.i18n.T("user.invalidEmailPassword"), nil)
+	}
+	if !user.Enabled {
 		return user, envelope.NewError(envelope.InputError, u.i18n.T("user.invalidEmailPassword"), nil)
 	}
 	return user, nil
@@ -199,6 +224,20 @@ func (u *Manager) SetResetPasswordToken(id int) (string, error) {
 	return token, nil
 }
 
+// SetResetPasswordTokenForContact sets a reset password token for a contact (e.g. for set-password link) and returns the token.
+func (u *Manager) SetResetPasswordTokenForContact(id int) (string, error) {
+	token, err := stringutil.RandomAlphanumeric(32)
+	if err != nil {
+		u.lo.Error("error generating reset password token for contact", "error", err)
+		return "", envelope.NewError(envelope.GeneralError, u.i18n.T("user.errorGeneratingPasswordToken"), nil)
+	}
+	if _, err := u.q.SetContactResetPasswordToken.Exec(id, token); err != nil {
+		u.lo.Error("error setting contact reset password token", "error", err)
+		return "", envelope.NewError(envelope.GeneralError, u.i18n.T("user.errorGeneratingPasswordToken"), nil)
+	}
+	return token, nil
+}
+
 // ResetPassword sets a password for a given user's reset password token.
 func (u *Manager) ResetPassword(token, password string) error {
 	if !IsStrongPassword(password) {
@@ -217,6 +256,26 @@ func (u *Manager) ResetPassword(token, password string) error {
 	}
 	if count, _ := rows.RowsAffected(); count == 0 {
 		return envelope.NewError(envelope.InputError, u.i18n.T("user.resetPasswordTokenExpired"), nil)
+	}
+	return nil
+}
+
+// SetPasswordForUser sets the password for a user by ID (e.g. contact portal password from admin).
+func (u *Manager) SetPasswordForUser(id int, password string) error {
+	if id <= 0 {
+		return envelope.NewError(envelope.InputError, u.i18n.Ts("globals.messages.invalid", "name", "id"), nil)
+	}
+	if !IsStrongPassword(password) {
+		return envelope.NewError(envelope.InputError, "Password is not strong enough, "+PasswordHint, nil)
+	}
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		u.lo.Error("error generating bcrypt password", "error", err)
+		return envelope.NewError(envelope.GeneralError, u.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.password}"), nil)
+	}
+	if _, err := u.q.SetUserPassword.Exec(passwordHash, id); err != nil {
+		u.lo.Error("error setting user password", "error", err)
+		return envelope.NewError(envelope.GeneralError, u.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.password}"), nil)
 	}
 	return nil
 }

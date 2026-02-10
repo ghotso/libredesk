@@ -1,30 +1,29 @@
 -- name: unsnooze-all
 UPDATE conversations
-SET snoozed_until = NULL, status_id = (SELECT id FROM conversation_statuses WHERE name = 'Open')
+SET snoozed_until = NULL, status_id = 1
 WHERE snoozed_until <= NOW();
 
 -- name: insert-conversation
+-- Default open status ID = 1 (schema insert order: Open, Snoozed, Resolved, Closed).
 WITH 
-status_id AS (
-   SELECT id FROM conversation_statuses WHERE name = $3
-),
 reference_number AS (
-   SELECT generate_reference_number($8) AS reference_number
+   SELECT generate_reference_number($7) AS reference_number
 )
 INSERT INTO conversations
-(contact_id, contact_channel_id, status_id, inbox_id, last_message, last_message_at, subject, reference_number)
+(contact_id, contact_channel_id, status_id, inbox_id, last_message, last_message_at, subject, reference_number, organization_id)
 VALUES(
    $1, 
    $2, 
-   (SELECT id FROM status_id), 
+   1, 
+   $3, 
    $4, 
    $5, 
-   $6, 
    CASE 
-      WHEN $9 = TRUE THEN CONCAT($7::text, ' - #', (SELECT reference_number FROM reference_number), '')
-      ELSE $7::text
+      WHEN $8 = TRUE THEN CONCAT($6::text, ' - #', (SELECT reference_number FROM reference_number), '')
+      ELSE $6::text
    END, 
-   (SELECT reference_number FROM reference_number)
+   (SELECT reference_number FROM reference_number),
+   NULLIF($9, 0)
 )
 RETURNING id, uuid;
 
@@ -135,6 +134,7 @@ SELECT
    c.assigned_team_id,
    c.subject,
    c.contact_id,
+   c.organization_id,
    c.sla_policy_id,
    c.meta,
    sla.name as sla_policy_name,
@@ -171,7 +171,9 @@ SELECT
    as_latest.resolution_deadline_at,
    as_latest.id as applied_sla_id,
    nxt_resp_event.deadline_at AS next_response_deadline_at,
-   nxt_resp_event.met_at as next_response_met_at
+   nxt_resp_event.met_at as next_response_met_at,
+   contact_org.organization_id AS contact_organization_id,
+   contact_org.organization_name AS contact_organization_name
 FROM conversations c
 JOIN users ct ON c.contact_id = ct.id
 JOIN inboxes inb ON c.inbox_id = inb.id
@@ -193,6 +195,13 @@ LEFT JOIN LATERAL (
   ORDER BY se.created_at DESC
   LIMIT 1
 ) nxt_resp_event ON true
+LEFT JOIN LATERAL (
+  SELECT om.organization_id, o.name AS organization_name
+  FROM organization_members om
+  JOIN organizations o ON o.id = om.organization_id
+  WHERE om.contact_id = c.contact_id
+  LIMIT 1
+) contact_org ON true
 WHERE 
   ($1 > 0 AND c.id = $1)
   OR 
@@ -207,6 +216,20 @@ SELECT
     c.uuid
 FROM conversations c
 WHERE c.created_at > $1;
+
+-- name: get-conversations-for-contact
+SELECT COUNT(*) OVER() AS total,
+    c.id,
+    c.uuid,
+    c.reference_number,
+    c.subject,
+    c.last_message_at,
+    s.name AS status
+FROM conversations c
+JOIN conversation_statuses s ON c.status_id = s.id
+WHERE c.contact_id = $1 OR ($2 > 0 AND c.organization_id = $2)
+ORDER BY c.last_message_at DESC NULLS LAST, c.id DESC
+LIMIT $3 OFFSET $4;
 
 -- name: get-contact-previous-conversations
 SELECT
@@ -241,17 +264,23 @@ SET assigned_team_id = $2,
 updated_at = NOW()
 WHERE uuid = $1;
 
--- name: update-conversation-status
+-- name: update-conversation-organization-id
 UPDATE conversations
-SET status_id = (SELECT id FROM conversation_statuses WHERE name = $2),
-    resolved_at = COALESCE(resolved_at, CASE WHEN $2 IN ('Resolved', 'Closed') THEN NOW() END),
-    closed_at = COALESCE(closed_at, CASE WHEN $2 = 'Closed' THEN NOW() END),
-    snoozed_until = CASE WHEN $2 = 'Snoozed' THEN $3::timestamptz ELSE snoozed_until END,
+SET organization_id = NULLIF($2, 0), updated_at = NOW()
+WHERE uuid = $1;
+
+-- name: update-conversation-status
+-- $2 = status_id (default IDs: 1=Open, 2=Snoozed, 3=Resolved, 4=Closed)
+UPDATE conversations
+SET status_id = $2,
+    resolved_at = COALESCE(resolved_at, CASE WHEN $2 IN (3, 4) THEN NOW() END),
+    closed_at = COALESCE(closed_at, CASE WHEN $2 = 4 THEN NOW() END),
+    snoozed_until = CASE WHEN $2 = 2 THEN $3::timestamptz ELSE snoozed_until END,
     updated_at = NOW()
 WHERE uuid = $1;
 
 -- name: get-user-active-conversations-count
-SELECT COUNT(*) FROM conversations WHERE status_id IN (SELECT id FROM conversation_statuses WHERE name NOT IN ('Resolved', 'Closed')) and assigned_user_id = $1;
+SELECT COUNT(*) FROM conversations WHERE status_id NOT IN (3, 4) AND assigned_user_id = $1;
 
 -- name: update-conversation-priority
 UPDATE conversations 
@@ -367,7 +396,7 @@ WHERE m.uuid = $1;
 UPDATE conversations
 SET assigned_user_id = NULL,
     updated_at = NOW()
-WHERE assigned_user_id = $1 AND status_id in (SELECT id FROM conversation_statuses WHERE name NOT IN ('Resolved', 'Closed'));
+WHERE assigned_user_id = $1 AND status_id NOT IN (3, 4);
 
 -- name: update-conversation-custom-attributes
 UPDATE conversations
@@ -390,10 +419,10 @@ SET
 WHERE uuid = $1;
 
 -- name: re-open-conversation
--- Open conversation if it is not already open and unset the assigned user if they are away and reassigning.
+-- Open status ID = 1. Reopen if not already open.
 UPDATE conversations
 SET 
-  status_id = (SELECT id FROM conversation_statuses WHERE name = 'Open'),
+  status_id = 1,
   snoozed_until = NULL,
   updated_at = NOW(),
   assigned_user_id = CASE
@@ -406,9 +435,7 @@ SET
   END
 WHERE 
   uuid = $1
-  AND status_id IN (
-    SELECT id FROM conversation_statuses WHERE name NOT IN ('Open')
-  )
+  AND status_id != 1
 
 -- name: get-conversation-by-message-id
 SELECT

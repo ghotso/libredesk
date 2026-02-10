@@ -203,6 +203,40 @@ CREATE TABLE contact_channels (
 	CONSTRAINT constraint_contact_channels_on_inbox_id_and_contact_id_unique UNIQUE (inbox_id, contact_id)
 );
 
+DROP TABLE IF EXISTS organizations CASCADE;
+CREATE TABLE organizations (
+	id SERIAL PRIMARY KEY,
+	created_at TIMESTAMPTZ DEFAULT NOW(),
+	updated_at TIMESTAMPTZ DEFAULT NOW(),
+	"name" TEXT NOT NULL,
+	description TEXT NULL,
+	CONSTRAINT constraint_organizations_on_name CHECK (length("name") <= 140),
+	CONSTRAINT constraint_organizations_on_description CHECK (length(description) <= 300)
+);
+
+DROP TABLE IF EXISTS organization_members CASCADE;
+CREATE TABLE organization_members (
+	id SERIAL PRIMARY KEY,
+	created_at TIMESTAMPTZ DEFAULT NOW(),
+	updated_at TIMESTAMPTZ DEFAULT NOW(),
+	organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE ON UPDATE CASCADE,
+	contact_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+	share_tickets_by_default BOOLEAN DEFAULT false NOT NULL,
+	CONSTRAINT constraint_organization_members_on_organization_id_and_contact_id_unique UNIQUE (organization_id, contact_id)
+);
+CREATE INDEX index_organization_members_on_contact_id ON organization_members(contact_id);
+
+DROP TABLE IF EXISTS organization_domains CASCADE;
+CREATE TABLE organization_domains (
+	id SERIAL PRIMARY KEY,
+	created_at TIMESTAMPTZ DEFAULT NOW(),
+	organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE ON UPDATE CASCADE,
+	domain TEXT NOT NULL,
+	CONSTRAINT constraint_organization_domains_on_organization_id_and_domain UNIQUE (organization_id, domain),
+	CONSTRAINT constraint_organization_domains_on_domain CHECK (length(domain) >= 2 AND length(domain) <= 253)
+);
+CREATE INDEX index_organization_domains_on_domain ON organization_domains(domain);
+
 DROP TABLE IF EXISTS conversations CASCADE;
 CREATE TABLE conversations (
     id BIGSERIAL PRIMARY KEY,
@@ -228,6 +262,9 @@ CREATE TABLE conversations (
 	contact_channel_id INT REFERENCES contact_channels(id) ON DELETE RESTRICT ON UPDATE CASCADE NOT NULL,
 	status_id INT REFERENCES conversation_statuses(id) ON DELETE RESTRICT ON UPDATE CASCADE NOT NULL,
     priority_id INT REFERENCES conversation_priorities(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+
+	-- Set to NULL when organization is deleted. When set, ticket is shared with that organization.
+	organization_id INT REFERENCES organizations(id) ON DELETE SET NULL ON UPDATE CASCADE,
 
 	meta JSONB DEFAULT '{}'::jsonb NOT NULL,
 	custom_attributes JSONB DEFAULT '{}'::jsonb NOT NULL,
@@ -259,6 +296,7 @@ CREATE INDEX index_conversations_on_last_message_at ON conversations (last_messa
 CREATE INDEX index_conversations_on_last_interaction_at ON conversations (last_interaction_at);
 CREATE INDEX index_conversations_on_next_sla_deadline_at ON conversations (next_sla_deadline_at);
 CREATE INDEX index_conversations_on_waiting_since ON conversations (waiting_since);
+CREATE INDEX index_conversations_on_organization_id ON conversations (organization_id);
 
 DROP TABLE IF EXISTS conversation_messages CASCADE;
 CREATE TABLE conversation_messages (
@@ -700,6 +738,9 @@ VALUES
     ('app.allowed_file_upload_extensions', '["*"]'::jsonb),
 	('app.timezone', '"Asia/Kolkata"'::jsonb),
 	('app.business_hours_id', '""'::jsonb),
+	('app.portal_enabled', 'false'::jsonb),
+	('app.portal_default_inbox_id', '0'::jsonb),
+	('app.organizations_enabled', 'false'::jsonb),
     ('notification.email.username', '"admin@yourcompany.com"'::jsonb),
     ('notification.email.host', '"smtp.gmail.com"'::jsonb),
     ('notification.email.port', '587'::jsonb),
@@ -744,7 +785,7 @@ VALUES
 	(
 		'Admin',
 		'Role for users who have complete access to everything.',
-		'{webhooks:manage,activity_logs:manage,custom_attributes:manage,contacts:read_all,contacts:read,contacts:write,contacts:block,contact_notes:read,contact_notes:write,contact_notes:delete,conversations:write,ai:manage,general_settings:manage,notification_settings:manage,oidc:manage,conversations:read_all,conversations:read_unassigned,conversations:read_assigned,conversations:read_team_inbox,conversations:read_team_all,conversations:read,conversations:update_user_assignee,conversations:update_team_assignee,conversations:update_priority,conversations:update_status,conversations:update_tags,messages:read,messages:write,view:manage,shared_views:manage,status:manage,tags:manage,macros:manage,users:manage,teams:manage,automations:manage,inboxes:manage,roles:manage,reports:manage,templates:manage,business_hours:manage,sla:manage}'
+		'{webhooks:manage,activity_logs:manage,custom_attributes:manage,contacts:read_all,contacts:read,contacts:write,contacts:block,contact_notes:read,contact_notes:write,contact_notes:delete,conversations:write,ai:manage,general_settings:manage,notification_settings:manage,oidc:manage,conversations:read_all,conversations:read_unassigned,conversations:read_assigned,conversations:read_team_inbox,conversations:read_team_all,conversations:read,conversations:update_user_assignee,conversations:update_team_assignee,conversations:update_priority,conversations:update_status,conversations:update_tags,messages:read,messages:write,view:manage,shared_views:manage,status:manage,tags:manage,macros:manage,users:manage,teams:manage,organizations:manage,automations:manage,inboxes:manage,roles:manage,reports:manage,templates:manage,business_hours:manage,sla:manage}'
 	);
 
 

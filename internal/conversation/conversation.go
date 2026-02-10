@@ -15,26 +15,26 @@ import (
 	"sync"
 	"time"
 
-	"github.com/abhinavxd/libredesk/internal/automation"
-	amodels "github.com/abhinavxd/libredesk/internal/automation/models"
-	"github.com/abhinavxd/libredesk/internal/conversation/models"
-	pmodels "github.com/abhinavxd/libredesk/internal/conversation/priority/models"
-	smodels "github.com/abhinavxd/libredesk/internal/conversation/status/models"
-	csatModels "github.com/abhinavxd/libredesk/internal/csat/models"
-	"github.com/abhinavxd/libredesk/internal/dbutil"
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	"github.com/abhinavxd/libredesk/internal/inbox"
-	imodels "github.com/abhinavxd/libredesk/internal/inbox/models"
-	mmodels "github.com/abhinavxd/libredesk/internal/media/models"
-	notifier "github.com/abhinavxd/libredesk/internal/notification"
-	nmodels "github.com/abhinavxd/libredesk/internal/notification/models"
-	slaModels "github.com/abhinavxd/libredesk/internal/sla/models"
-	"github.com/abhinavxd/libredesk/internal/stringutil"
-	tmodels "github.com/abhinavxd/libredesk/internal/team/models"
-	"github.com/abhinavxd/libredesk/internal/template"
-	umodels "github.com/abhinavxd/libredesk/internal/user/models"
-	wmodels "github.com/abhinavxd/libredesk/internal/webhook/models"
-	"github.com/abhinavxd/libredesk/internal/ws"
+	"github.com/ghotso/libredesk/internal/automation"
+	amodels "github.com/ghotso/libredesk/internal/automation/models"
+	"github.com/ghotso/libredesk/internal/conversation/models"
+	pmodels "github.com/ghotso/libredesk/internal/conversation/priority/models"
+	smodels "github.com/ghotso/libredesk/internal/conversation/status/models"
+	csatModels "github.com/ghotso/libredesk/internal/csat/models"
+	"github.com/ghotso/libredesk/internal/dbutil"
+	"github.com/ghotso/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/inbox"
+	imodels "github.com/ghotso/libredesk/internal/inbox/models"
+	mmodels "github.com/ghotso/libredesk/internal/media/models"
+	notifier "github.com/ghotso/libredesk/internal/notification"
+	nmodels "github.com/ghotso/libredesk/internal/notification/models"
+	slaModels "github.com/ghotso/libredesk/internal/sla/models"
+	"github.com/ghotso/libredesk/internal/stringutil"
+	tmodels "github.com/ghotso/libredesk/internal/team/models"
+	"github.com/ghotso/libredesk/internal/template"
+	umodels "github.com/ghotso/libredesk/internal/user/models"
+	wmodels "github.com/ghotso/libredesk/internal/webhook/models"
+	"github.com/ghotso/libredesk/internal/ws"
 	"github.com/jmoiron/sqlx"
 	"github.com/knadh/go-i18n"
 	"github.com/lib/pq"
@@ -70,6 +70,7 @@ type Manager struct {
 	csatStore                  csatStore
 	webhookStore               webhookStore
 	dispatcher                 *notifier.Dispatcher
+	organizationStore          organizationStore
 	lo                         *logf.Logger
 	db                         *sqlx.DB
 	i18n                       *i18n.I18n
@@ -82,6 +83,10 @@ type Manager struct {
 	closed                     bool
 	closedMu                   sync.RWMutex
 	wg                         sync.WaitGroup
+}
+
+type organizationStore interface {
+	AddContactToOrganizationsByEmailDomain(contactID int64, email string)
 }
 
 type slaStore interface {
@@ -143,6 +148,7 @@ type Opts struct {
 	Lo                       *logf.Logger
 	OutgoingMessageQueueSize int
 	IncomingMessageQueueSize int
+	OrganizationStore        organizationStore // optional; when set, contacts are auto-added to orgs by email domain on incoming message
 }
 
 // New initializes a new conversation Manager.
@@ -181,6 +187,7 @@ func New(
 		settingsStore:              settingsStore,
 		csatStore:                  csatStore,
 		webhookStore:               webhook,
+		organizationStore:         opts.OrganizationStore,
 		slaStore:                   slaStore,
 		statusStore:                statusStore,
 		priorityStore:              priorityStore,
@@ -201,6 +208,7 @@ type queries struct {
 	GetConversationUUID                *sqlx.Stmt `query:"get-conversation-uuid"`
 	GetConversation                    *sqlx.Stmt `query:"get-conversation"`
 	GetConversationsCreatedAfter       *sqlx.Stmt `query:"get-conversations-created-after"`
+	GetConversationsForContact         *sqlx.Stmt `query:"get-conversations-for-contact"`
 	GetUnassignedConversations         *sqlx.Stmt `query:"get-unassigned-conversations"`
 	GetConversations                   string     `query:"get-conversations"`
 	GetContactPreviousConversations    *sqlx.Stmt `query:"get-contact-previous-conversations"`
@@ -215,6 +223,7 @@ type queries struct {
 	UpdateConversationAssignedTeam     *sqlx.Stmt `query:"update-conversation-assigned-team"`
 	UpdateConversationCustomAttributes *sqlx.Stmt `query:"update-conversation-custom-attributes"`
 	UpdateConversationPriority         *sqlx.Stmt `query:"update-conversation-priority"`
+	UpdateConversationOrganizationID   *sqlx.Stmt `query:"update-conversation-organization-id"`
 	UpdateConversationStatus           *sqlx.Stmt `query:"update-conversation-status"`
 	UpdateConversationLastMessage      *sqlx.Stmt `query:"update-conversation-last-message"`
 	InsertConversationParticipant      *sqlx.Stmt `query:"insert-conversation-participant"`
@@ -252,13 +261,14 @@ type queries struct {
 }
 
 // CreateConversation creates a new conversation and returns its ID and UUID.
-func (c *Manager) CreateConversation(contactID, contactChannelID, inboxID int, lastMessage string, lastMessageAt time.Time, subject string, appendRefNumToSubject bool) (int, string, error) {
+// organizationID is optional; 0 means do not set (ticket not shared with org).
+func (c *Manager) CreateConversation(contactID, contactChannelID, inboxID int, lastMessage string, lastMessageAt time.Time, subject string, appendRefNumToSubject bool, organizationID int) (int, string, error) {
 	var (
 		id     int
 		uuid   string
 		prefix string
 	)
-	if err := c.q.InsertConversation.QueryRow(contactID, contactChannelID, models.StatusOpen, inboxID, lastMessage, lastMessageAt, subject, prefix, appendRefNumToSubject).Scan(&id, &uuid); err != nil {
+	if err := c.q.InsertConversation.QueryRow(contactID, contactChannelID, inboxID, lastMessage, lastMessageAt, subject, prefix, appendRefNumToSubject, organizationID).Scan(&id, &uuid); err != nil {
 		c.lo.Error("error inserting new conversation into the DB", "error", err)
 		return id, uuid, err
 	}
@@ -291,6 +301,27 @@ func (c *Manager) GetConversation(id int, uuid, refNum string) (models.Conversat
 	}
 
 	return conversation, nil
+}
+
+// GetConversationsForContact returns conversations visible to the contact (own + org-shared when organizationID > 0).
+func (c *Manager) GetConversationsForContact(contactID, organizationID int, page, pageSize int) ([]models.PortalConversationListItem, int, error) {
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if page < 1 {
+		page = 1
+	}
+	offset := (page - 1) * pageSize
+	var list []models.PortalConversationListItem
+	if err := c.q.GetConversationsForContact.Select(&list, contactID, organizationID, pageSize, offset); err != nil {
+		c.lo.Error("error fetching conversations for contact", "error", err)
+		return nil, 0, envelope.NewError(envelope.GeneralError, c.i18n.Ts("globals.messages.errorFetching", "name", "{globals.terms.conversation}"), nil)
+	}
+	total := 0
+	if len(list) > 0 {
+		total = list[0].Total
+	}
+	return list, total, nil
 }
 
 // GetContactPreviousConversations retrieves previous conversations for a contact with a configurable limit.
@@ -455,11 +486,13 @@ func (c *Manager) ReOpenConversation(conversationUUID string, actor umodels.User
 	// Record the status change as an activity if the conversation was reopened.
 	count, _ := rows.RowsAffected()
 	if count > 0 {
-		// Broadcast update using WS
-		c.BroadcastConversationUpdate(conversationUUID, "status", models.StatusOpen)
-
-		// Record the status change as an activity.
-		if err := c.RecordStatusChange(models.StatusOpen, conversationUUID, actor); err != nil {
+		openStatus, err := c.statusStore.Get(1)
+		if err != nil {
+			c.lo.Error("error fetching open status for reopen broadcast", "error", err)
+			openStatus = smodels.Status{Name: "Open"}
+		}
+		c.BroadcastConversationUpdate(conversationUUID, "status", openStatus.Name)
+		if err := c.RecordStatusChange(openStatus.Name, conversationUUID, actor); err != nil {
 			return err
 		}
 	}
@@ -671,6 +704,15 @@ func (c *Manager) UpdateConversationPriority(uuid string, priorityID int, priori
 	return nil
 }
 
+// UpdateConversationOrganizationID sets or clears the conversation's organization_id (for share-with-org toggle). Pass 0 to clear.
+func (c *Manager) UpdateConversationOrganizationID(uuid string, organizationID int) error {
+	if _, err := c.q.UpdateConversationOrganizationID.Exec(uuid, organizationID); err != nil {
+		c.lo.Error("error updating conversation organization_id", "error", err)
+		return envelope.NewError(envelope.GeneralError, c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.conversation}"), nil)
+	}
+	return nil
+}
+
 // UpdateConversationStatus updates the status of a conversation.
 func (c *Manager) UpdateConversationStatus(uuid string, statusID int, status, snoozeDur string, actor umodels.User) error {
 	// Fetch the status name if status ID is provided.
@@ -682,13 +724,13 @@ func (c *Manager) UpdateConversationStatus(uuid string, statusID int, status, sn
 		status = s.Name
 	}
 
-	if status == models.StatusSnoozed && snoozeDur == "" {
+	if statusID == smodels.DefaultStatusIDSnoozed && snoozeDur == "" {
 		return envelope.NewError(envelope.InputError, c.i18n.T("conversation.invalidSnoozeDuration"), nil)
 	}
 
-	// Parse the snooze duration if status is snoozed.
+	// Parse the snooze duration if status is snoozed (ID 2).
 	snoozeUntil := time.Time{}
-	if status == models.StatusSnoozed {
+	if statusID == smodels.DefaultStatusIDSnoozed {
 		duration, err := time.ParseDuration(snoozeDur)
 		if err != nil {
 			c.lo.Error("error parsing snooze duration", "error", err)
@@ -705,13 +747,14 @@ func (c *Manager) UpdateConversationStatus(uuid string, statusID int, status, sn
 	oldStatus := conversationBeforeChange.Status.String
 
 	// Status not changed and not snoozed. Return early.
-	if oldStatus == status && status != models.StatusSnoozed {
+	oldStatusID := int(conversationBeforeChange.StatusID.Int)
+	if oldStatusID == statusID && statusID != smodels.DefaultStatusIDSnoozed {
 		c.lo.Debug("no status update: conversation status unchanged and not snoozed", "uuid", uuid, "old_status", oldStatus, "new_status", status)
 		return nil
 	}
 
-	// Update the conversation status.
-	if _, err := c.q.UpdateConversationStatus.Exec(uuid, status, snoozeUntil); err != nil {
+	// Update the conversation status (by status_id so renamed default statuses still work).
+	if _, err := c.q.UpdateConversationStatus.Exec(uuid, statusID, snoozeUntil); err != nil {
 		c.lo.Error("error updating conversation status", "error", err)
 		return envelope.NewError(envelope.GeneralError, c.i18n.Ts("globals.messages.errorUpdating", "name", "{globals.terms.conversation}"), nil)
 	}
@@ -749,9 +792,8 @@ func (c *Manager) UpdateConversationStatus(uuid string, statusID int, status, sn
 		c.automation.EvaluateConversationUpdateRules(conversation, amodels.EventConversationStatusChange)
 	}
 
-	// Broadcast `resolved_at` if the status is changed to resolved, `resolved_at` is set only once when the conversation is resolved for the first time.
-	// Subsequent status changes to resolved will not update the `resolved_at` field.
-	if oldStatus != models.StatusResolved && status == models.StatusResolved {
+	// Broadcast `resolved_at` if the status is changed to resolved (ID 3).
+	if oldStatusID != smodels.DefaultStatusIDResolved && statusID == smodels.DefaultStatusIDResolved {
 		resolvedAt := conversationBeforeChange.ResolvedAt.Time
 		if resolvedAt.IsZero() {
 			resolvedAt = time.Now()

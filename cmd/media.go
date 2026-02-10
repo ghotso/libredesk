@@ -9,12 +9,12 @@ import (
 
 	"slices"
 
-	"github.com/abhinavxd/libredesk/internal/attachment"
-	amodels "github.com/abhinavxd/libredesk/internal/auth/models"
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	"github.com/abhinavxd/libredesk/internal/image"
-	mmodels "github.com/abhinavxd/libredesk/internal/media/models"
-	"github.com/abhinavxd/libredesk/internal/stringutil"
+	"github.com/ghotso/libredesk/internal/attachment"
+	amodels "github.com/ghotso/libredesk/internal/auth/models"
+	"github.com/ghotso/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/image"
+	mmodels "github.com/ghotso/libredesk/internal/media/models"
+	"github.com/ghotso/libredesk/internal/stringutil"
 	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
 	"github.com/volatiletech/null/v9"
@@ -150,11 +150,13 @@ func handleMediaUpload(r *fastglue.Request) error {
 
 // handleServeMedia serves uploaded media.
 // Supports both authenticated access (with permission checks) and signed URL access (no permission checks).
+// Portal contacts can access media for messages in conversations they can access (owner or org-shared).
 func handleServeMedia(r *fastglue.Request) error {
 	var (
-		app  = r.Context.(*App)
-		uuid = r.RequestCtx.UserValue("uuid").(string)
+		app        = r.Context.(*App)
+		uuid       = r.RequestCtx.UserValue("uuid").(string)
 		authMethod = r.RequestCtx.UserValue("auth_method")
+		userType   = r.RequestCtx.UserValue("user_type")
 	)
 
 	// If accessed via signed URL, skip permission checks and serve file directly.
@@ -162,27 +164,47 @@ func handleServeMedia(r *fastglue.Request) error {
 		return serveMediaFile(r, app, uuid, nil)
 	}
 
-	// Session/API key authenticated - perform full permission check.
 	auser := r.RequestCtx.UserValue("user").(amodels.User)
 
+	// Portal contact: allow only message attachments for conversations the contact can access.
+	if userType == "contact" {
+		media, err := getMediaByUUID(app, uuid)
+		if err != nil {
+			return sendErrorEnvelope(r, err)
+		}
+		if media.Model.String != "messages" {
+			return r.SendErrorEnvelope(http.StatusForbidden, app.i18n.Ts("globals.messages.denied", "name", "{globals.terms.permission}"), nil, envelope.PermissionError)
+		}
+		conv, err := app.conversation.GetConversationByMessageID(media.ModelID.Int)
+		if err != nil {
+			return sendErrorEnvelope(r, err)
+		}
+		orgID, err := portalContactOrgID(app, auser.ID)
+		if err != nil {
+			return sendErrorEnvelope(r, err)
+		}
+		if !contactCanAccessConversation(conv, auser.ID, orgID) {
+			return r.SendErrorEnvelope(http.StatusForbidden, app.i18n.Ts("globals.messages.denied", "name", "{globals.terms.permission}"), nil, envelope.PermissionError)
+		}
+		return serveMediaFile(r, app, uuid, &media)
+	}
+
+	// Agent: full permission check.
 	user, err := app.user.GetAgent(auser.ID, "")
 	if err != nil {
 		return sendErrorEnvelope(r, err)
 	}
 
-	// Fetch media from DB.
 	media, err := getMediaByUUID(app, uuid)
 	if err != nil {
 		return sendErrorEnvelope(r, err)
 	}
 
-	// Check if the user has permission to access the linked model.
 	allowed, err := app.authz.EnforceMediaAccess(user, media.Model.String)
 	if err != nil {
 		return sendErrorEnvelope(r, err)
 	}
 
-	// For messages, check access to the conversation this message is part of.
 	if media.Model.String == "messages" {
 		conversation, err := app.conversation.GetConversationByMessageID(media.ModelID.Int)
 		if err != nil {

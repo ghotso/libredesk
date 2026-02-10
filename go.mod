@@ -1,4 +1,4 @@
-module github.com/abhinavxd/libredesk
+module github.com/ghotso/libredesk
 
 go 1.25.0
 

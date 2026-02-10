@@ -1,16 +1,16 @@
 <template>
-  <ContactDetail>
-    <div class="flex flex-col mx-auto items-start">
-      <div class="mb-6" v-if="userStore.can('contacts:read_all')">
-        <CustomBreadcrumb :links="breadcrumbLinks" />
-      </div>
+  <div class="w-full h-full flex flex-col min-h-0">
+    <div class="flex-1 min-h-0 overflow-auto pb-6">
+      <div class="flex flex-col w-full max-w-full">
+        <div class="mb-6" v-if="userStore.can('contacts:read_all')">
+          <CustomBreadcrumb :links="breadcrumbLinks" />
+        </div>
 
-      <div
-        v-if="contact"
-        class="flex justify-center space-y-4 w-full"
-        :class="{ 'loading-fade': formLoading }"
-      >
-        <div class="flex flex-col w-full mt-12">
+        <div
+          v-if="contact"
+          class="flex flex-col w-full"
+          :class="{ 'loading-fade': formLoading }"
+        >
           <div class="flex flex-col space-y-2">
             <AvatarUpload
               @upload="onUpload"
@@ -31,7 +31,16 @@
               {{ contact.created_at ? format(new Date(contact.created_at), 'PPP') : 'N/A' }}
             </div>
 
-            <div class="w-30 pt-3">
+            <div class="w-30 pt-3 flex flex-wrap gap-2">
+              <Button
+                v-if="userStore.can('contacts:write') && contact.email"
+                variant="outline"
+                size="sm"
+                :disabled="sendPasswordEmailLoading"
+                @click="sendSetPasswordEmail"
+              >
+                {{ t('contact.sendSetPasswordEmail') }}
+              </Button>
               <Button
                 :variant="contact.enabled ? 'destructive' : 'outline'"
                 @click="showBlockConfirmation = true"
@@ -46,42 +55,52 @@
 
           <div class="mt-12 space-y-10">
             <ContactForm :formLoading="formLoading" :onSubmit="onSubmit" />
-            <ContactNotes :contactId="contact.id" v-if="userStore.can('contact_notes:read')" />
+            <ContactOrganizations
+              v-if="contact.id"
+              :contact-id="contact.id"
+              :initial-memberships="initialMemberships"
+              :initial-all-organizations="initialAllOrganizations"
+            />
+            <ContactNotes
+              v-if="userStore.can('contact_notes:read')"
+              :contact-id="contact.id"
+              :initial-notes="initialNotes"
+            />
           </div>
         </div>
+
+        <Spinner v-if="formLoading" />
       </div>
-
-      <Spinner v-if="formLoading" />
-
-      <Dialog :open="showBlockConfirmation" @update:open="showBlockConfirmation = $event">
-        <DialogContent class="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {{
-                contact?.enabled
-                  ? t('globals.messages.block', { name: t('globals.terms.contact') })
-                  : t('globals.messages.unblock', { name: t('globals.terms.contact') })
-              }}
-            </DialogTitle>
-            <DialogDescription>
-              {{ contact?.enabled ? t('contact.blockConfirm') : t('contact.unblockConfirm') }}
-            </DialogDescription>
-          </DialogHeader>
-          <div class="flex justify-end space-x-2 pt-4">
-            <Button variant="outline" @click="showBlockConfirmation = false">
-              {{ t('globals.messages.cancel') }}
-            </Button>
-            <Button
-              :variant="contact?.enabled ? 'destructive' : 'default'"
-              @click="confirmToggleBlock"
-            >
-              {{ contact?.enabled ? t('globals.messages.block') : t('globals.messages.unblock') }}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
-  </ContactDetail>
+
+    <Dialog :open="showBlockConfirmation" @update:open="showBlockConfirmation = $event">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {{
+              contact?.enabled
+                ? t('globals.messages.block', { name: t('globals.terms.contact') })
+                : t('globals.messages.unblock', { name: t('globals.terms.contact') })
+            }}
+          </DialogTitle>
+          <DialogDescription>
+            {{ contact?.enabled ? t('contact.blockConfirm') : t('contact.unblockConfirm') }}
+          </DialogDescription>
+        </DialogHeader>
+        <div class="flex justify-end space-x-2 pt-4">
+          <Button variant="outline" @click="showBlockConfirmation = false">
+            {{ t('globals.messages.cancel') }}
+          </Button>
+          <Button
+            :variant="contact?.enabled ? 'destructive' : 'default'"
+            @click="confirmToggleBlock"
+          >
+            {{ contact?.enabled ? t('globals.messages.block') : t('globals.messages.unblock') }}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  </div>
 </template>
 
 <script setup>
@@ -102,9 +121,9 @@ import {
 } from '@/components/ui/dialog'
 import { useUserStore } from '@/stores/user'
 import { ShieldOffIcon, ShieldCheckIcon } from 'lucide-vue-next'
-import ContactDetail from '@/layouts/contact/ContactDetail.vue'
 import api from '@/api'
 import ContactForm from '@/features/contact/ContactForm.vue'
+import ContactOrganizations from '@/features/contact/ContactOrganizations.vue'
 import ContactNotes from '@/features/contact/ContactNotes.vue'
 import { createFormSchema } from '@/features/contact/formSchema.js'
 import { useEmitter } from '@/composables/useEmitter'
@@ -119,6 +138,7 @@ const route = useRoute()
 const formLoading = ref(false)
 const contact = ref(null)
 const showBlockConfirmation = ref(false)
+const sendPasswordEmailLoading = ref(false)
 const userStore = useUserStore()
 
 const form = useForm({
@@ -130,7 +150,36 @@ const breadcrumbLinks = [
   { path: '', label: t('globals.messages.edit', { name: t('globals.terms.contact') }) }
 ]
 
-onMounted(fetchContact)
+const initialMemberships = ref(null)
+const initialNotes = ref(null)
+const initialAllOrganizations = ref(null)
+
+onMounted(fetchContactAndSections)
+
+async function fetchContactAndSections() {
+  formLoading.value = true
+  const id = route.params.id
+  try {
+    const [contactRes, orgsRes, notesRes, allOrgsRes] = await Promise.all([
+      api.getContact(id),
+      api.getContactOrganizations(id).catch(() => ({ data: { data: [] } })),
+      userStore.can('contact_notes:read')
+        ? api.getContactNotes(id).catch(() => ({ data: { data: [] } }))
+        : Promise.resolve({ data: { data: [] } }),
+      userStore.can('organizations:manage') ? api.getOrganizations().catch(() => ({ data: { data: [] } })) : Promise.resolve({ data: { data: [] } })
+    ])
+    const contactData = contactRes.data?.data
+    contact.value = contactData
+    form.setValues(contactData ?? {})
+    initialMemberships.value = orgsRes?.data?.data ?? []
+    initialNotes.value = notesRes?.data?.data ?? []
+    initialAllOrganizations.value = allOrgsRes?.data?.data ?? []
+  } catch (err) {
+    showError(err)
+  } finally {
+    formLoading.value = false
+  }
+}
 
 async function fetchContact() {
   formLoading.value = true
@@ -150,6 +199,19 @@ const getInitials = computed(() => {
   const { first_name = '', last_name = '' } = contact.value
   return `${first_name.charAt(0).toUpperCase()}${last_name.charAt(0).toUpperCase()}`
 })
+
+async function sendSetPasswordEmail() {
+  if (!contact.value?.id) return
+  sendPasswordEmailLoading.value = true
+  try {
+    await api.sendContactSetPasswordEmail(contact.value.id)
+    emitToast(t('contact.sendSetPasswordEmailSuccess'))
+  } catch (err) {
+    showError(err)
+  } finally {
+    sendPasswordEmailLoading.value = false
+  }
+}
 
 async function confirmToggleBlock() {
   showBlockConfirmation.value = false

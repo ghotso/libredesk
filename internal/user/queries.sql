@@ -126,6 +126,11 @@ UPDATE users
 SET reset_password_token = $2, reset_password_token_expiry = now() + interval '1 day'
 WHERE id = $1 AND type = 'agent';
 
+-- name: set-contact-reset-password-token
+UPDATE users
+SET reset_password_token = $2, reset_password_token_expiry = now() + interval '1 day'
+WHERE id = $1 AND type = 'contact';
+
 -- name: set-password
 UPDATE users
 SET password = $1, reset_password_token = NULL, reset_password_token_expiry = NULL
@@ -155,6 +160,12 @@ INSERT INTO contact_channels (contact_id, inbox_id, identifier)
 VALUES ((SELECT id FROM contact), $6, $7)
 ON CONFLICT (contact_id, inbox_id) DO UPDATE SET updated_at = now()
 RETURNING contact_id, id;
+
+-- name: ensure-contact-channel
+INSERT INTO contact_channels (contact_id, inbox_id, identifier)
+VALUES ($1, $2, $3)
+ON CONFLICT (inbox_id, contact_id) DO UPDATE SET updated_at = now()
+RETURNING id;
 
 -- name: update-last-login-at
 UPDATE users

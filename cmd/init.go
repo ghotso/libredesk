@@ -13,42 +13,43 @@ import (
 
 	"html/template"
 
-	activitylog "github.com/abhinavxd/libredesk/internal/activity_log"
-	"github.com/abhinavxd/libredesk/internal/ai"
-	auth_ "github.com/abhinavxd/libredesk/internal/auth"
-	"github.com/abhinavxd/libredesk/internal/authz"
-	"github.com/abhinavxd/libredesk/internal/autoassigner"
-	"github.com/abhinavxd/libredesk/internal/automation"
-	businesshours "github.com/abhinavxd/libredesk/internal/business_hours"
-	"github.com/abhinavxd/libredesk/internal/colorlog"
-	"github.com/abhinavxd/libredesk/internal/conversation"
-	"github.com/abhinavxd/libredesk/internal/conversation/priority"
-	"github.com/abhinavxd/libredesk/internal/conversation/status"
-	"github.com/abhinavxd/libredesk/internal/csat"
-	customAttribute "github.com/abhinavxd/libredesk/internal/custom_attribute"
-	"github.com/abhinavxd/libredesk/internal/importer"
-	"github.com/abhinavxd/libredesk/internal/inbox"
-	"github.com/abhinavxd/libredesk/internal/inbox/channel/email"
-	imodels "github.com/abhinavxd/libredesk/internal/inbox/models"
-	"github.com/abhinavxd/libredesk/internal/macro"
-	"github.com/abhinavxd/libredesk/internal/media"
-	fs "github.com/abhinavxd/libredesk/internal/media/stores/localfs"
-	"github.com/abhinavxd/libredesk/internal/media/stores/s3"
-	notifier "github.com/abhinavxd/libredesk/internal/notification"
-	emailnotifier "github.com/abhinavxd/libredesk/internal/notification/providers/email"
-	"github.com/abhinavxd/libredesk/internal/oidc"
-	"github.com/abhinavxd/libredesk/internal/report"
-	"github.com/abhinavxd/libredesk/internal/role"
-	"github.com/abhinavxd/libredesk/internal/search"
-	"github.com/abhinavxd/libredesk/internal/setting"
-	"github.com/abhinavxd/libredesk/internal/sla"
-	"github.com/abhinavxd/libredesk/internal/tag"
-	"github.com/abhinavxd/libredesk/internal/team"
-	tmpl "github.com/abhinavxd/libredesk/internal/template"
-	"github.com/abhinavxd/libredesk/internal/user"
-	"github.com/abhinavxd/libredesk/internal/view"
-	"github.com/abhinavxd/libredesk/internal/webhook"
-	"github.com/abhinavxd/libredesk/internal/ws"
+	activitylog "github.com/ghotso/libredesk/internal/activity_log"
+	"github.com/ghotso/libredesk/internal/ai"
+	auth_ "github.com/ghotso/libredesk/internal/auth"
+	"github.com/ghotso/libredesk/internal/authz"
+	"github.com/ghotso/libredesk/internal/autoassigner"
+	"github.com/ghotso/libredesk/internal/automation"
+	businesshours "github.com/ghotso/libredesk/internal/business_hours"
+	"github.com/ghotso/libredesk/internal/colorlog"
+	"github.com/ghotso/libredesk/internal/conversation"
+	"github.com/ghotso/libredesk/internal/conversation/priority"
+	"github.com/ghotso/libredesk/internal/conversation/status"
+	"github.com/ghotso/libredesk/internal/csat"
+	customAttribute "github.com/ghotso/libredesk/internal/custom_attribute"
+	"github.com/ghotso/libredesk/internal/importer"
+	"github.com/ghotso/libredesk/internal/inbox"
+	"github.com/ghotso/libredesk/internal/inbox/channel/email"
+	imodels "github.com/ghotso/libredesk/internal/inbox/models"
+	"github.com/ghotso/libredesk/internal/macro"
+	"github.com/ghotso/libredesk/internal/media"
+	fs "github.com/ghotso/libredesk/internal/media/stores/localfs"
+	"github.com/ghotso/libredesk/internal/media/stores/s3"
+	notifier "github.com/ghotso/libredesk/internal/notification"
+	emailnotifier "github.com/ghotso/libredesk/internal/notification/providers/email"
+	"github.com/ghotso/libredesk/internal/organization"
+	"github.com/ghotso/libredesk/internal/oidc"
+	"github.com/ghotso/libredesk/internal/report"
+	"github.com/ghotso/libredesk/internal/role"
+	"github.com/ghotso/libredesk/internal/search"
+	"github.com/ghotso/libredesk/internal/setting"
+	"github.com/ghotso/libredesk/internal/sla"
+	"github.com/ghotso/libredesk/internal/tag"
+	"github.com/ghotso/libredesk/internal/team"
+	tmpl "github.com/ghotso/libredesk/internal/template"
+	"github.com/ghotso/libredesk/internal/user"
+	"github.com/ghotso/libredesk/internal/view"
+	"github.com/ghotso/libredesk/internal/webhook"
+	"github.com/ghotso/libredesk/internal/ws"
 	"github.com/jmoiron/sqlx"
 	"github.com/knadh/go-i18n"
 	kjson "github.com/knadh/koanf/parsers/json"
@@ -161,6 +162,7 @@ func initFS() stuffbin.FileSystem {
 	var files = []string{
 		"frontend/dist",
 		"i18n",
+		"schema.sql",
 		"static",
 	}
 
@@ -250,13 +252,18 @@ func initConversations(
 	template *tmpl.Manager,
 	webhook *webhook.Manager,
 	dispatcher *notifier.Dispatcher,
+	organizationStore *organization.Manager,
 ) *conversation.Manager {
-	c, err := conversation.New(hub, i18n, sla, status, priority, inboxStore, userStore, teamStore, mediaStore, settings, csat, automationEngine, template, webhook, dispatcher, conversation.Opts{
+	opts := conversation.Opts{
 		DB:                       db,
 		Lo:                       initLogger("conversation_manager"),
 		OutgoingMessageQueueSize: ko.MustInt("message.outgoing_queue_size"),
 		IncomingMessageQueueSize: ko.MustInt("message.incoming_queue_size"),
-	})
+	}
+	if organizationStore != nil {
+		opts.OrganizationStore = organizationStore
+	}
+	c, err := conversation.New(hub, i18n, sla, status, priority, inboxStore, userStore, teamStore, mediaStore, settings, csat, automationEngine, template, webhook, dispatcher, opts)
 	if err != nil {
 		log.Fatalf("error initializing conversation manager: %v", err)
 	}
@@ -452,6 +459,20 @@ func initTeam(db *sqlx.DB, i18n *i18n.I18n) *team.Manager {
 	})
 	if err != nil {
 		log.Fatalf("error initializing team manager: %v", err)
+	}
+	return mgr
+}
+
+// initOrganization inits organization manager.
+func initOrganization(db *sqlx.DB, i18n *i18n.I18n) *organization.Manager {
+	var lo = initLogger("organization-manager")
+	mgr, err := organization.New(organization.Opts{
+		DB:   db,
+		Lo:   lo,
+		I18n: i18n,
+	})
+	if err != nil {
+		log.Fatalf("error initializing organization manager: %v", err)
 	}
 	return mgr
 }

@@ -381,6 +381,7 @@
   "sla.firstResponseTimeAfterResolution": "Il momento della prima risposta non può essere successivo alla risoluzione",
   "conversationStatus.alreadyInUse": "Impossibile eliminare lo stato come è in uso, Si prega di rimuovere questo stato da tutte le conversazioni prima di eliminare",
   "conversationStatus.cannotUpdateDefault": "Impossibile aggiornare lo stato predefinito della conversazione",
+  "conversationStatus.cannotDeleteDefault": "Gli stati di conversazione predefiniti non possono essere eliminati",
   "csat.alreadySubmitted": "Questionario già inviato",
   "csat.rateYourInteraction": "Valuta la tua interazione recente",
   "csat.rating.poor": "Terribile",

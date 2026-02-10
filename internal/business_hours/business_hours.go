@@ -6,9 +6,9 @@ import (
 	"embed"
 	"errors"
 
-	"github.com/abhinavxd/libredesk/internal/business_hours/models"
-	"github.com/abhinavxd/libredesk/internal/dbutil"
-	"github.com/abhinavxd/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/business_hours/models"
+	"github.com/ghotso/libredesk/internal/dbutil"
+	"github.com/ghotso/libredesk/internal/envelope"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/types"
 	"github.com/knadh/go-i18n"

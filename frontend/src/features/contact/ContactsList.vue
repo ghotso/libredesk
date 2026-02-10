@@ -1,18 +1,19 @@
 <template>
-  <div class="min-h-screen flex flex-col">
-    <!-- Main Content Area -->
-    <div class="flex flex-wrap gap-4 pb-4">
-      <div class="flex items-center gap-4 mb-4">
-        <!-- Search Input -->
-        <Input
-          type="text"
-          v-model="searchTerm"
-          placeholder="Search by email"
-          @input="fetchContactsDebounced"
-        />
+  <div class="w-full h-full flex flex-col min-h-0">
+    <!-- Main Content Area (scrollable list) -->
+    <div class="flex-1 min-h-0 overflow-auto flex flex-col gap-4 pb-4">
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <!-- Search Input -->
+          <Input
+            type="text"
+            v-model="searchTerm"
+            placeholder="Search by email"
+            @input="fetchContactsDebounced"
+          />
 
-        <!-- Order By Popover -->
-        <Popover>
+          <!-- Order By Popover -->
+          <Popover>
           <PopoverTrigger>
             <Button variant="outline" size="sm" class="flex items-center h-8">
               <ArrowDownWideNarrow size="18" class="text-muted-foreground cursor-pointer" />
@@ -42,6 +43,12 @@
             </Select>
           </PopoverContent>
         </Popover>
+        </div>
+        <Button v-if="userStore.can('contacts:write')" asChild>
+          <router-link :to="{ name: 'new-contact' }">
+            {{ t('globals.messages.new', { name: t('globals.terms.contact').toLowerCase() }) }}
+          </router-link>
+        </Button>
       </div>
 
       <!-- Loading State -->
@@ -89,8 +96,8 @@
       </template>
     </div>
 
-    <!-- Sticky Pagination Controls -->
-    <div class="sticky bottom-0 bg-background p-4 mt-auto">
+    <!-- Pagination at bottom of page -->
+    <div class="flex-shrink-0 bg-background p-4 border-t">
       <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div class="flex items-center gap-2">
           <span class="text-sm text-muted-foreground"> Page {{ page }} of {{ totalPages }} </span>
@@ -185,6 +192,8 @@ import { Button } from '@/components/ui/button'
 import { ArrowDownWideNarrow } from 'lucide-vue-next'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useDebounceFn } from '@vueuse/core'
+import { useI18n } from 'vue-i18n'
+import { useUserStore } from '@/stores/user'
 import { EMITTER_EVENTS } from '@/constants/emitterEvents.js'
 import { useEmitter } from '@/composables/useEmitter'
 import { handleHTTPError } from '@/utils/http'
@@ -201,6 +210,8 @@ const orderByField = ref('users.created_at')
 const orderByDirection = ref('desc')
 const total = ref(0)
 const emitter = useEmitter()
+const { t } = useI18n()
+const userStore = useUserStore()
 
 // Google-style pagination
 const visiblePages = computed(() => getVisiblePages(page.value, totalPages.value))

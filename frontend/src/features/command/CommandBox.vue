@@ -215,7 +215,7 @@ import { useMagicKeys } from '@vueuse/core'
 import { CalendarIcon } from 'lucide-vue-next'
 import { useConversationStore } from '@/stores/conversation'
 import { useMacroStore } from '@/stores/macro'
-import { CONVERSATION_DEFAULT_STATUSES, MACRO_CONTEXT } from '@/constants/conversation'
+import { MACRO_CONTEXT } from '@/constants/conversation'
 import { Users, User, Pin, Rocket, Tags, Zap } from 'lucide-vue-next'
 import {
   CommandDialog,
@@ -322,7 +322,8 @@ async function handleSnooze(minutes) {
 }
 
 async function resolveConversation() {
-  await conversationStore.updateStatus(CONVERSATION_DEFAULT_STATUSES.RESOLVED)
+  const resolvedLabel = conversationStore.statusOptions.find((s) => Number(s.value) === 3)?.label ?? 'Resolved'
+  await conversationStore.updateStatus(resolvedLabel)
   toggleOpen()
 }
 

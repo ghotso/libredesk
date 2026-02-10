@@ -16,6 +16,11 @@ export const adminNavItems = [
         permission: 'general_settings:manage'
       },
       {
+        titleKey: 'admin.portal',
+        href: '/admin/portal',
+        permission: 'general_settings:manage'
+      },
+      {
         titleKey: 'globals.terms.businessHour',
         href: '/admin/business-hours',
         permission: 'business_hours:manage',
@@ -182,6 +187,12 @@ export const contactNavItems = [
   {
     titleKey: 'globals.terms.contact',
     href: '/contacts',
+    isTitleKeyPlural: true
+  },
+  {
+    titleKey: 'globals.terms.organization',
+    href: '/organizations',
+    permission: 'organizations:manage',
     isTitleKeyPlural: true
   }
 ]

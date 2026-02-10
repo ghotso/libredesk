@@ -327,6 +327,7 @@
   "sla.firstResponseTimeAfterResolution": "Første svartid kan ikke være efter løsningstid",
   "conversationStatus.alreadyInUse": "Kan ikke slette status, da den er i brug. Fjern denne status fra alle samtaler inden sletning",
   "conversationStatus.cannotUpdateDefault": "Kan ikke opdatere standard samtalestatus",
+  "conversationStatus.cannotDeleteDefault": "Standard samtalestatus kan ikke slettes",
   "csat.alreadySubmitted": "CSAT allerede indsendt",
   "csat.rateYourInteraction": "Bedøm den seneste interaktion",
   "csat.rating.poor": "Ringe",

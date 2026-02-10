@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/abhinavxd/libredesk/internal/conversation/models"
-	"github.com/abhinavxd/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/conversation/models"
+	"github.com/ghotso/libredesk/internal/envelope"
 )
 
 // UpsertConversationDraft saves or updates a draft for a conversation.

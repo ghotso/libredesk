@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	"github.com/abhinavxd/libredesk/internal/ws"
+	"github.com/ghotso/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/ws"
 	"github.com/valyala/fasthttp"
 	"github.com/zerodha/fastglue"
 )
@@ -20,6 +20,19 @@ func initHandlers(g *fastglue.Fastglue, hub *ws.Hub) {
 	g.GET("/logout", auth(handleLogout))
 	g.GET("/api/v1/oidc/{id}/login", handleOIDCLogin)
 	g.GET("/api/v1/oidc/{id}/finish", handleOIDCCallback)
+
+	// Portal (contact) authentication.
+	g.POST("/api/v1/portal/auth/login", handlePortalLogin)
+	g.POST("/api/v1/portal/auth/logout", handlePortalLogout)
+	g.POST("/api/v1/portal/auth/forgot-password", handlePortalForgotPassword)
+	g.GET("/api/v1/portal/auth/me", portalAuth(handlePortalMe))
+	g.POST("/api/v1/portal/auth/set-password", handlePortalSetPassword)
+	g.GET("/api/v1/portal/conversations", portalAuth(handlePortalListConversations))
+	g.GET("/api/v1/portal/conversations/{uuid}", portalAuth(handlePortalGetConversation))
+	g.POST("/api/v1/portal/conversations", portalAuth(handlePortalCreateConversation))
+	g.POST("/api/v1/portal/conversations/{uuid}/messages", portalAuth(handlePortalSendMessage))
+	g.POST("/api/v1/portal/conversations/{uuid}/close", portalAuth(handlePortalCloseConversation))
+	g.POST("/api/v1/portal/media", portalAuth(handleMediaUpload))
 
 	// i18n.
 	g.GET("/api/v1/lang/{lang}", handleGetI18nLang)
@@ -59,6 +72,7 @@ func initHandlers(g *fastglue.Fastglue, hub *ws.Hub) {
 	g.PUT("/api/v1/conversations/{uuid}/assignee/team/remove", perm(handleRemoveTeamAssignee, "conversations:update_team_assignee"))
 	g.PUT("/api/v1/conversations/{uuid}/priority", perm(handleUpdateConversationPriority, "conversations:update_priority"))
 	g.PUT("/api/v1/conversations/{uuid}/status", perm(handleUpdateConversationStatus, "conversations:update_status"))
+	g.PUT("/api/v1/conversations/{uuid}/share-with-organization", perm(handleUpdateConversationShareWithOrganization, "conversations:read"))
 	g.PUT("/api/v1/conversations/{uuid}/last-seen", perm(handleUpdateConversationAssigneeLastSeen, "conversations:read"))
 	g.PUT("/api/v1/conversations/{uuid}/mark-unread", perm(handleMarkConversationAsUnread, "conversations:read"))
 	g.POST("/api/v1/conversations/{uuid}/tags", perm(handleUpdateConversationtags, "conversations:update_tags"))
@@ -136,8 +150,11 @@ func initHandlers(g *fastglue.Fastglue, hub *ws.Hub) {
 
 	// Contacts.
 	g.GET("/api/v1/contacts", perm(handleGetContacts, "contacts:read_all"))
+	g.POST("/api/v1/contacts", perm(handleCreateContact, "contacts:write"))
 	g.GET("/api/v1/contacts/{id}", perm(handleGetContact, "contacts:read"))
+	g.GET("/api/v1/contacts/{id}/organizations", perm(handleGetContactOrganizations, "contacts:read"))
 	g.PUT("/api/v1/contacts/{id}", perm(handleUpdateContact, "contacts:write"))
+	g.POST("/api/v1/contacts/{id}/send-set-password-email", perm(handleSendContactSetPasswordEmail, "contacts:write"))
 	g.PUT("/api/v1/contacts/{id}/block", perm(handleBlockContact, "contacts:block"))
 
 	// Contact notes.
@@ -152,6 +169,20 @@ func initHandlers(g *fastglue.Fastglue, hub *ws.Hub) {
 	g.POST("/api/v1/teams", perm(handleCreateTeam, "teams:manage"))
 	g.PUT("/api/v1/teams/{id}", perm(handleUpdateTeam, "teams:manage"))
 	g.DELETE("/api/v1/teams/{id}", perm(handleDeleteTeam, "teams:manage"))
+
+	// Organizations.
+	g.GET("/api/v1/organizations", perm(handleGetOrganizations, "organizations:manage"))
+	g.POST("/api/v1/organizations", perm(handleCreateOrganization, "organizations:manage"))
+	g.GET("/api/v1/organizations/{id}", perm(handleGetOrganization, "organizations:manage"))
+	g.PUT("/api/v1/organizations/{id}", perm(handleUpdateOrganization, "organizations:manage"))
+	g.DELETE("/api/v1/organizations/{id}", perm(handleDeleteOrganization, "organizations:manage"))
+	g.GET("/api/v1/organizations/{id}/members", perm(handleGetOrganizationMembers, "organizations:manage"))
+	g.POST("/api/v1/organizations/{id}/members", perm(handleAddOrganizationMember, "organizations:manage"))
+	g.DELETE("/api/v1/organizations/{id}/members/{contact_id}", perm(handleRemoveOrganizationMember, "organizations:manage"))
+	g.PUT("/api/v1/organizations/{id}/members/{contact_id}", perm(handleUpdateOrganizationMember, "organizations:manage"))
+	g.GET("/api/v1/organizations/{id}/domains", perm(handleGetOrganizationDomains, "organizations:manage"))
+	g.POST("/api/v1/organizations/{id}/domains", perm(handleAddOrganizationDomain, "organizations:manage"))
+	g.DELETE("/api/v1/organizations/{id}/domains", perm(handleRemoveOrganizationDomain, "organizations:manage"))
 
 	// Automations.
 	g.GET("/api/v1/automations/rules", perm(handleGetAutomationRules, "automations:manage"))

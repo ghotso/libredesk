@@ -10,7 +10,9 @@ export const useAppSettingsStore = defineStore('settings', {
         async fetchSettings (key = 'general') {
             try {
                 const response = await api.getSettings(key)
-                this.settings = response?.data?.data || {}
+                // Support both envelope { data: payload } and direct payload
+                const data = response?.data?.data ?? response?.data ?? {}
+                this.settings = data
                 return this.settings
             } catch (error) {
                 // Pass

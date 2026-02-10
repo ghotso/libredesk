@@ -113,6 +113,10 @@
           :border="true"
           class="w-full bg-destructive/10 text-destructive border-destructive/20 p-3 rounded text-sm"
         />
+
+        <p v-if="portalEnabled" class="text-center text-sm text-muted-foreground pt-2">
+          <router-link to="/portal/login" class="text-primary hover:underline">{{ t('portal.customerPortal') }}</router-link>
+        </p>
       </CardContent>
     </Card>
   </AuthLayout>
@@ -152,6 +156,8 @@ const loginForm = ref({
 })
 const oidcProviders = ref([])
 const appSettingsStore = useAppSettingsStore()
+
+const portalEnabled = computed(() => appSettingsStore.public_config?.['app.portal_enabled'] === true)
 
 // Demo build has the credentials prefilled.
 const isDemoBuild = import.meta.env.VITE_DEMO_BUILD === 'true'

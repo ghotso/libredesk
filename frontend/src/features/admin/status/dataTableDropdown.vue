@@ -2,21 +2,19 @@
   <Dialog v-model:open="dialogOpen">
     <DropdownMenu>
       <DropdownMenuTrigger as-child>
-        <Button
-          variant="ghost"
-          class="w-8 h-8 p-0"
-          v-if="!CONVERSATION_DEFAULT_STATUSES_LIST.includes(props.status.name)"
-        >
+        <Button variant="ghost" class="w-8 h-8 p-0">
           <span class="sr-only"></span>
           <MoreHorizontal class="w-4 h-4" />
         </Button>
-        <div v-else class="w-8 h-8 p-0 invisible"></div>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DialogTrigger as-child>
           <DropdownMenuItem> {{ $t('globals.messages.edit') }} </DropdownMenuItem>
         </DialogTrigger>
-        <DropdownMenuItem @click="() => (alertOpen = true)">
+        <DropdownMenuItem
+          v-if="!props.status.is_default"
+          @click="() => (alertOpen = true)"
+        >
           {{ $t('globals.messages.delete') }}
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -101,7 +99,6 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog'
-import { CONVERSATION_DEFAULT_STATUSES_LIST } from '@/constants/conversation.js'
 import { useEmitter } from '@/composables/useEmitter'
 import { handleHTTPError } from '@/utils/http'
 import { EMITTER_EVENTS } from '@/constants/emitterEvents.js'

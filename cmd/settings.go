@@ -5,9 +5,9 @@ import (
 	"net/mail"
 	"strings"
 
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	"github.com/abhinavxd/libredesk/internal/setting/models"
-	"github.com/abhinavxd/libredesk/internal/stringutil"
+	"github.com/ghotso/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/setting/models"
+	"github.com/ghotso/libredesk/internal/stringutil"
 	"github.com/valyala/fasthttp"
 	"github.com/zerodha/fastglue"
 )
@@ -54,6 +54,11 @@ func handleUpdateGeneralSettings(r *fastglue.Request) error {
 	req.Timezone = strings.TrimSpace(req.Timezone)
 	// Trim whitespace and trailing slash from root URL.
 	req.RootURL = strings.TrimRight(strings.TrimSpace(req.RootURL), "/")
+
+	// When portal is enabled, default inbox is required (used for portal tickets and sending portal emails).
+	if req.PortalEnabled && req.PortalDefaultInboxID <= 0 {
+		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.T("admin.general.portalDefaultInboxRequired"), nil, envelope.InputError)
+	}
 
 	// Get current language before update.
 	app.Lock()

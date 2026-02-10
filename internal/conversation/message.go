@@ -12,17 +12,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/abhinavxd/libredesk/internal/attachment"
-	amodels "github.com/abhinavxd/libredesk/internal/automation/models"
-	"github.com/abhinavxd/libredesk/internal/conversation/models"
-	"github.com/abhinavxd/libredesk/internal/envelope"
-	"github.com/abhinavxd/libredesk/internal/image"
-	"github.com/abhinavxd/libredesk/internal/inbox"
-	mmodels "github.com/abhinavxd/libredesk/internal/media/models"
-	"github.com/abhinavxd/libredesk/internal/sla"
-	"github.com/abhinavxd/libredesk/internal/stringutil"
-	umodels "github.com/abhinavxd/libredesk/internal/user/models"
-	wmodels "github.com/abhinavxd/libredesk/internal/webhook/models"
+	"github.com/ghotso/libredesk/internal/attachment"
+	amodels "github.com/ghotso/libredesk/internal/automation/models"
+	"github.com/ghotso/libredesk/internal/conversation/models"
+	"github.com/ghotso/libredesk/internal/envelope"
+	"github.com/ghotso/libredesk/internal/image"
+	"github.com/ghotso/libredesk/internal/inbox"
+	mmodels "github.com/ghotso/libredesk/internal/media/models"
+	"github.com/ghotso/libredesk/internal/sla"
+	"github.com/ghotso/libredesk/internal/stringutil"
+	umodels "github.com/ghotso/libredesk/internal/user/models"
+	wmodels "github.com/ghotso/libredesk/internal/webhook/models"
 	"github.com/lib/pq"
 	"github.com/volatiletech/null/v9"
 )
@@ -651,6 +651,11 @@ func (m *Manager) processIncomingMessage(in models.IncomingMessage) error {
 	}
 	in.Message.SenderID = in.Contact.ID
 
+	// Auto-add contact to organizations whose domain matches contact email (e.g. on new email conversation).
+	if m.organizationStore != nil && in.Contact.Email.String != "" {
+		m.organizationStore.AddContactToOrganizationsByEmailDomain(int64(in.Contact.ID), in.Contact.Email.String)
+	}
+
 	// Message exists by source ID?
 	conversationID, err := m.messageExistsBySourceID([]string{in.Message.SourceID.String})
 	if err != nil && err != errConversationNotFound {
@@ -934,7 +939,7 @@ func (m *Manager) findOrCreateConversation(in *models.Message, inboxID, contactC
 		new = true
 		lastMessage := stringutil.HTML2Text(in.Content)
 		lastMessageAt := time.Now()
-		conversationID, conversationUUID, err = m.CreateConversation(contactID, contactChannelID, inboxID, lastMessage, lastMessageAt, in.Subject, false /**append reference number to subject**/)
+		conversationID, conversationUUID, err = m.CreateConversation(contactID, contactChannelID, inboxID, lastMessage, lastMessageAt, in.Subject, false /**append reference number to subject**/, 0 /**organizationID**/)
 		if err != nil || conversationID == 0 {
 			return new, err
 		}
