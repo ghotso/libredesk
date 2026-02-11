@@ -1,6 +1,10 @@
 node_modules
 config.toml
 config.toml.*
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/terraform.tfvars
 libredesk.bin
 libredesk
 libredesk.exe

@@ -1,0 +1,27 @@
+# Copy to terraform.tfvars and fill in — or set in Terraform Cloud workspace variables
+# DO NOT commit real values; use Terraform Cloud variables for secrets
+
+environment = "staging"
+
+app_name = "libredesk-staging"
+
+root_url = "https://staging.libredesk.io"
+
+r2_bucket_name = "libredesk-staging-media"
+
+# Neon: get org_id from Account Settings → Organization settings
+neon_org_id = "your-neon-organization-id"
+
+# Fly.io org slug (e.g. personal or your team org)
+fly_org = "personal"
+
+# Fly.io primary region: ams (Amsterdam), cdg (Paris) — EU
+fly_primary_region = "ams"
+
+# Sensitive — set in Terraform Cloud, not here
+# neon_api_key         = ""
+# upstash_email        = ""
+# upstash_api_key      = ""
+# cloudflare_api_token = ""
+# cloudflare_account_id = ""
+# fly_api_token        = ""

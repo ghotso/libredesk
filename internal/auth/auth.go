@@ -91,34 +91,39 @@ func New(cfg Config, i18n *i18n.I18n, rd *redis.Client, logger *logf.Logger) (*A
 		verifiers[provider.ID] = verifier
 	}
 
+	// Agent (admin) session — cookie libredesk_session only. Never used for contacts.
 	sess := simplesessions.New(simplesessions.Options{
 		EnableAutoCreate: true,
 		SessionIDLength:  64,
 		Cookie: simplesessions.CookieOptions{
 			Name:       "libredesk_session",
+			Path:       "/",
 			IsHTTPOnly: true,
 			IsSecure:   cfg.SecureCookies,
 			MaxAge:     time.Hour * 9,
 		},
 	})
-
 	st := sessredisstore.New(context.TODO(), rd)
 	st.SetTTL(time.Hour*9, true)
 	sess.UseStore(st)
 	sess.SetCookieHooks(simpleSessGetCookieCB, simpleSessSetCookieCB)
 
-	// Portal (contact) session uses a separate cookie so portal login does not overwrite agent session.
+	// Portal (contact) session — separate cookie (libredesk_portal_session) and separate store instance.
+	// Strict isolation: portal login never touches libredesk_session; agent login never touches libredesk_portal_session.
 	portalSess := simplesessions.New(simplesessions.Options{
 		EnableAutoCreate: true,
 		SessionIDLength:  64,
 		Cookie: simplesessions.CookieOptions{
 			Name:       "libredesk_portal_session",
+			Path:       "/",
 			IsHTTPOnly: true,
 			IsSecure:   cfg.SecureCookies,
 			MaxAge:     time.Hour * 9,
 		},
 	})
-	portalSess.UseStore(st)
+	portalSt := sessredisstore.New(context.TODO(), rd)
+	portalSt.SetTTL(time.Hour*9, true)
+	portalSess.UseStore(portalSt)
 	portalSess.SetCookieHooks(simpleSessGetCookieCB, simpleSessSetCookieCB)
 
 	return &Auth{
